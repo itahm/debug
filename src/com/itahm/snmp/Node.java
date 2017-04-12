@@ -1,0 +1,545 @@
+package com.itahm.snmp;
+
+import java.io.IOException;
+
+import java.net.InetAddress;
+import java.util.Calendar;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.Vector;
+
+import com.itahm.Agent;
+import com.itahm.json.JSONException;
+import com.itahm.json.JSONObject;
+
+import org.snmp4j.CommunityTarget;
+import org.snmp4j.PDU;
+import org.snmp4j.ScopedPDU;
+import org.snmp4j.Snmp;
+import org.snmp4j.Target;
+import org.snmp4j.UserTarget;
+import org.snmp4j.event.ResponseEvent;
+import org.snmp4j.event.ResponseListener;
+import org.snmp4j.mp.SnmpConstants;
+import org.snmp4j.smi.Counter32;
+import org.snmp4j.smi.Counter64;
+import org.snmp4j.smi.Gauge32;
+import org.snmp4j.smi.Integer32;
+import org.snmp4j.smi.IpAddress;
+import org.snmp4j.smi.Null;
+import org.snmp4j.smi.OID;
+import org.snmp4j.smi.OctetString;
+import org.snmp4j.smi.TimeTicks;
+import org.snmp4j.smi.UdpAddress;
+import org.snmp4j.smi.Variable;
+import org.snmp4j.smi.VariableBinding;
+
+public abstract class Node implements ResponseListener {
+	
+	private final static int MAX_REQUEST = 100;
+	private final static int CISCO = 9;
+	
+	protected PDU pdu;
+	private PDU nextPDU;
+	private final Snmp snmp;
+	private Target target;
+	protected long lastResponse;
+	private Integer enterprise;
+	private long failureCount = 0;
+	private boolean isInitialized = false;
+	private final Set<Integer> error = new HashSet<>();
+	
+	/**
+	 * 이전 데이터 보관소
+	 */
+	protected final JSONObject data = new JSONObject();
+	
+	/**
+	 * 최신 데이터 보관소
+	 */
+	protected final Map<String, Integer> hrProcessorEntry = new HashMap<>();
+	protected final Map<String, JSONObject> hrStorageEntry = new HashMap<>();
+	protected final Map<String, JSONObject> ifEntry = new HashMap<>();
+	protected final Map<String, String> arpTable = new HashMap<>(); // mac - ip
+	protected final Map<String, Integer> macTable = new HashMap<>(); // mac - index
+	protected final Map<String, Integer> ipTable = new HashMap<>(); // ip - index
+	protected final Map<String, Integer> remoteIPTable = new HashMap<>(); //ip - index
+	protected final Map<String, String> networkTable = new HashMap<>(); //ip - mask
+	protected final Map<Integer, String> maskTable = new HashMap<>(); //index - mask
+	
+	public Node(Snmp snmp) throws IOException {
+		this.snmp = snmp;
+	}
+	
+	public Node(Snmp snmp, String ip, int udp, OctetString user, int level, long timeout) throws IOException {
+		this(snmp);
+		
+		pdu = new ScopedPDU();
+		pdu.setType(PDU.GETNEXT);
+		
+		nextPDU = new ScopedPDU();
+		nextPDU.setType(PDU.GETNEXT);
+		
+		// target 설정
+		target = new UserTarget();
+		target.setAddress(new UdpAddress(InetAddress.getByName(ip), udp));
+		target.setVersion(SnmpConstants.version3);
+		target.setSecurityLevel(level);
+		target.setSecurityName(user);
+		target.setTimeout(timeout);
+	}
+	
+	public Node(Snmp snmp, String ip, int udp, OctetString community, long timeout) throws IOException {
+		this(snmp);
+		
+		pdu = new PDU();
+		pdu.setType(PDU.GETNEXT);
+		
+		nextPDU = new PDU();
+		nextPDU.setType(PDU.GETNEXT);
+		
+		
+		
+		// target 설정
+		target = new CommunityTarget(new UdpAddress(InetAddress.getByName(ip), udp), community);
+		target.setVersion(SnmpConstants.version2c);
+		target.setTimeout(timeout);
+	}
+	
+	private void setEnterprise(int enterprise) {
+		switch(enterprise) {
+		case CISCO:
+			this.pdu.add(new VariableBinding(RequestOID.busyPer));
+			this.pdu.add(new VariableBinding(RequestOID.cpmCPUTotal5sec));
+			this.pdu.add(new VariableBinding(RequestOID.cpmCPUTotal5secRev));
+			
+			break;
+		}
+	}
+	
+	public void request() throws IOException {		
+		// 존재하지 않는 index 지워주기 위해 초기화
+		hrProcessorEntry.clear();
+		hrStorageEntry.clear();
+		ifEntry.clear();
+		arpTable.clear();
+		remoteIPTable.clear();
+		macTable.clear();
+		ipTable.clear();
+		networkTable.clear();
+		maskTable.clear();
+		
+		this.pdu.setRequestID(new Integer32(0));
+		
+		sendRequest(this.pdu);
+	}
+	
+	public void getFailureRate(JSONObject json) {
+		json.put("failure", this.failureCount);
+	}
+	
+	public long getFailureRate() {
+		return this.failureCount;
+	}
+	
+	public void resetResponse() {
+		this.failureCount = 0;
+	}
+
+	public JSONObject getData() {		
+		if (!this.isInitialized) {
+			return null;
+		}
+		
+		this.data.put("failure", getFailureRate());
+		
+		return this.data;
+	}
+	
+	private final void sendRequest(PDU pdu) throws IOException {
+		this.snmp.send(pdu, this.target, null, this);
+	}
+	
+	private final boolean parseSystem(OID response, Variable variable, OID request) {
+		if (request.startsWith(RequestOID.sysDescr) && response.startsWith(RequestOID.sysDescr)) {
+			this.data.put("sysDescr", new String(((OctetString)variable).getValue()));
+		}
+		else if (request.startsWith(RequestOID.sysObjectID) && response.startsWith(RequestOID.sysObjectID)) {
+			this.data.put("sysObjectID", ((OID)variable).toDottedString());
+			
+			if (this.enterprise == null) {
+				this.enterprise = ((OID)variable).get(6);
+				
+				setEnterprise(this.enterprise);
+			}
+		}
+		else if (request.startsWith(RequestOID.sysName) && response.startsWith(RequestOID.sysName)) {
+			this.data.put("sysName", new String(((OctetString)variable).getValue()));
+		}
+		
+		return false;
+	}
+	
+	private final boolean parseIFEntry(OID response, Variable variable, OID request) throws IOException {
+		String index = Integer.toString(response.last());
+		JSONObject ifData = this.ifEntry.get(index);
+		
+		if(ifData == null) {
+			ifData = new JSONObject();
+					
+			this.ifEntry.put(index, ifData);
+			
+			ifData.put("ifInBPS", 0);
+			ifData.put("ifOutBPS", 0);
+		}
+		
+		if (request.startsWith(RequestOID.ifDescr) && response.startsWith(RequestOID.ifDescr)) {
+			ifData.put("ifDescr", new String(((OctetString)variable).getValue()));
+		}
+		else if (request.startsWith(RequestOID.ifType) && response.startsWith(RequestOID.ifType)) {			
+			ifData.put("ifType", ((Integer32)variable).getValue());
+		}
+		else if (request.startsWith(RequestOID.ifSpeed) && response.startsWith(RequestOID.ifSpeed)) {			
+			ifData.put("ifSpeed", ((Gauge32)variable).getValue());
+		}
+		else if (request.startsWith(RequestOID.ifPhysAddress) && response.startsWith(RequestOID.ifPhysAddress)) {
+			byte [] mac = ((OctetString)variable).getValue();
+			
+			String macString = "";
+			
+			if (mac.length > 0) {
+				macString = String.format("%02X", 0L |mac[0] & 0xff);
+				
+				for (int i=1; i<mac.length; i++) {
+					macString += String.format("-%02X", 0L |mac[i] & 0xff);
+				}
+			}
+			
+			ifData.put("ifPhysAddress", macString);
+		}
+		else if (request.startsWith(RequestOID.ifAdminStatus) && response.startsWith(RequestOID.ifAdminStatus)) {
+			ifData.put("ifAdminStatus", ((Integer32)variable).getValue());
+		}
+		else if (request.startsWith(RequestOID.ifOperStatus) && response.startsWith(RequestOID.ifOperStatus)) {			
+			ifData.put("ifOperStatus", ((Integer32)variable).getValue());
+		}
+		else if (request.startsWith(RequestOID.ifInOctets) && response.startsWith(RequestOID.ifInOctets)) {
+			ifData.put("ifInOctets", ((Counter32)variable).getValue());
+		}
+		else if (request.startsWith(RequestOID.ifOutOctets) && response.startsWith(RequestOID.ifOutOctets)) {
+			ifData.put("ifOutOctets", ((Counter32)variable).getValue());
+		}
+		else if (request.startsWith(RequestOID.ifInErrors) && response.startsWith(RequestOID.ifInErrors)) {
+			ifData.put("ifInErrors", ((Counter32)variable).getValue());
+		}
+		else if (request.startsWith(RequestOID.ifOutErrors) && response.startsWith(RequestOID.ifOutErrors)) {
+			ifData.put("ifOutErrors", ((Counter32)variable).getValue());
+		}
+		else {
+			return false;
+		}
+		
+		return true;
+	}
+	
+	private final boolean parseIFXEntry(OID response, Variable variable, OID request) throws IOException {
+		String index = Integer.toString(response.last());
+		JSONObject ifData = this.ifEntry.get(index);
+		
+		if(ifData == null) {
+			ifData = new JSONObject();
+			
+			this.ifEntry.put(index, ifData);
+		}
+		
+		if (request.startsWith(RequestOID.ifName) && response.startsWith(RequestOID.ifName)) {
+			ifData.put("ifName", new String(((OctetString)variable).getValue()));
+		}
+		else if (request.startsWith(RequestOID.ifAlias) && response.startsWith(RequestOID.ifAlias)) {
+			ifData.put("ifAlias", new String(((OctetString)variable).getValue()));
+		}
+		else if (request.startsWith(RequestOID.ifHCInOctets) && response.startsWith(RequestOID.ifHCInOctets)) {
+			ifData.put("ifHCInOctets", ((Counter64)variable).getValue());
+		}
+		else if (request.startsWith(RequestOID.ifHCOutOctets) && response.startsWith(RequestOID.ifHCOutOctets)) {
+			ifData.put("ifHCOutOctets", ((Counter64)variable).getValue());
+		}
+		else if (request.startsWith(RequestOID.ifHighSpeed) && response.startsWith(RequestOID.ifHighSpeed)) {
+			ifData.put("ifHighSpeed", ((Gauge32)variable).getValue() * 1000000L);
+		}
+		else {
+			return false;
+		}
+		
+		return true;
+	}
+	
+	private final boolean parseHost(OID response, Variable variable, OID request) throws JSONException, IOException {
+		if (request.startsWith(RequestOID.hrSystemUptime) && response.startsWith(RequestOID.hrSystemUptime)) {
+			this.data.put("hrSystemUptime", ((TimeTicks)variable).toMilliseconds());
+			
+			return false;
+		}
+		
+		String index = Integer.toString(response.last());
+		
+		if (request.startsWith(RequestOID.hrProcessorLoad) && response.startsWith(RequestOID.hrProcessorLoad)) {
+			this.hrProcessorEntry.put(index, ((Integer32)variable).getValue());
+		}
+		else if (request.startsWith(RequestOID.hrStorageEntry) && response.startsWith(RequestOID.hrStorageEntry)) {
+			JSONObject storageData = this.hrStorageEntry.get(index);
+			
+			if (storageData == null) {
+				storageData = new JSONObject();
+				
+				this.hrStorageEntry.put(index, storageData = new JSONObject());
+			}
+			
+			if (request.startsWith(RequestOID.hrStorageType) && response.startsWith(RequestOID.hrStorageType)) {
+				storageData.put("hrStorageType", ((OID)variable).last());
+			}
+			else if (request.startsWith(RequestOID.hrStorageDescr) && response.startsWith(RequestOID.hrStorageDescr)) {
+				storageData.put("hrStorageDescr", new String(((OctetString)variable).getValue()));
+			}
+			else if (request.startsWith(RequestOID.hrStorageAllocationUnits) && response.startsWith(RequestOID.hrStorageAllocationUnits)) {
+				storageData.put("hrStorageAllocationUnits", ((Integer32)variable).getValue());
+			}
+			else if (request.startsWith(RequestOID.hrStorageSize) && response.startsWith(RequestOID.hrStorageSize)) {
+				storageData.put("hrStorageSize", ((Integer32)variable).getValue());
+			}
+			else if (request.startsWith(RequestOID.hrStorageUsed) && response.startsWith(RequestOID.hrStorageUsed)) {
+				storageData.put("hrStorageUsed", ((Integer32)variable).getValue());
+			}
+			else {
+				return false;
+			}
+		}
+		else {
+			return false;
+		}
+		
+		return true;
+	}
+	
+	private final boolean parseIP(OID response, Variable variable, OID request) {
+		byte [] array = response.toByteArray();
+		String ip = new IpAddress(new byte [] {array[array.length -4], array[array.length -3], array[array.length -2], array[array.length -1]}).toString();
+		
+		if (request.startsWith(RequestOID.ipAddrTable)) {
+			if (request.startsWith(RequestOID.ipAdEntIfIndex) && response.startsWith(RequestOID.ipAdEntIfIndex)) {
+				if (this.data.has("ifEntry")) {
+					JSONObject ifEntry = this.data.getJSONObject("ifEntry");
+					Integer index = ((Integer32)variable).getValue();
+					
+					if (ifEntry.has(index.toString())) {
+						String mac = ifEntry.getJSONObject(index.toString()).getString("ifPhysAddress");
+						
+						this.arpTable.put(mac, ip);
+						this.macTable.put(mac, index);
+						this.ipTable.put(ip, index);
+					}
+				}
+			}
+			else if (request.startsWith(RequestOID.ipAdEntNetMask) && response.startsWith(RequestOID.ipAdEntNetMask)) {
+				String mask = ((IpAddress)variable).toString();
+				
+				this.networkTable.put(ip, mask);
+				
+				this.maskTable.put(this.ipTable.get(ip), mask);
+			}
+			else {
+				return false;
+			}
+		} else if (request.startsWith(RequestOID.ipNetToMediaTable)) {
+			int index = array[array.length -5];
+			
+			if (request.startsWith(RequestOID.ipNetToMediaType) && response.startsWith(RequestOID.ipNetToMediaType)) {
+				if (((Integer32)variable).getValue() == 3) {
+					this.remoteIPTable.put(ip, index);
+				}
+			}
+			else if (request.startsWith(RequestOID.ipNetToMediaPhysAddress) && response.startsWith(RequestOID.ipNetToMediaPhysAddress)) {
+				if (this.remoteIPTable.containsKey(ip) && this.remoteIPTable.get(ip) == index) {
+					byte [] mac = ((OctetString)variable).getValue();
+					String macString = String.format("%02X", 0L |mac[0] & 0xff);
+					
+					for (int i=1; i<mac.length; i++) {
+						macString += String.format("-%02X", 0L |mac[i] & 0xff);
+					}
+					
+					this.macTable.put(macString, index);
+					this.arpTable.put(macString, ip);
+				}
+			}
+			else {
+				return false;
+			}
+		}
+		else {
+			return false;
+		}
+		
+		return true;
+	}
+	
+	private final boolean parseCisco(OID response, Variable variable, OID request) {
+		String index = Integer.toString(response.last());
+		
+		if (request.startsWith(RequestOID.busyPer) && response.startsWith(RequestOID.busyPer)) {
+			this.hrProcessorEntry.put(index, (int)((Gauge32)variable).getValue());
+		}
+		else if (request.startsWith(RequestOID.cpmCPUTotal5sec) && response.startsWith(RequestOID.cpmCPUTotal5sec)) {
+			this.hrProcessorEntry.put(index, (int)((Gauge32)variable).getValue());
+			
+		}
+		else if (request.startsWith(RequestOID.cpmCPUTotal5secRev) && response.startsWith(RequestOID.cpmCPUTotal5secRev)) {
+			this.hrProcessorEntry.put(index, (int)((Gauge32)variable).getValue());
+		}
+		else {
+			return false;
+		}
+		
+		return true;
+	}
+	/**
+	 * Parse.
+	 * 
+	 * @param response
+	 * @param variable
+	 * @param reqest
+	 * @return true get-next가 계속 진행되는 경우
+	 * @throws IOException 
+	 */
+	private final boolean parseResponse (OID response, Variable variable, OID request) throws IOException {
+		// 1,3,6,1,2,1,1,5
+		if (request.startsWith(RequestOID.system)) {
+			return parseSystem(response, variable, request);
+		}
+		// 1,3,6,1,2,1,2,2,1
+		else if (request.startsWith(RequestOID.ifEntry)) {
+			return parseIFEntry(response, variable, request);
+		}
+		// 1,3,6,1,2,1,31,1,1,1
+		else if (request.startsWith(RequestOID.ifXEntry)) {
+			return parseIFXEntry(response, variable, request);
+		}
+		// 1,3,6,1,2,1,25
+		else if (request.startsWith(RequestOID.host)) {
+			return parseHost(response, variable, request);
+		}
+		// 1,3,6,1,2,1,4
+		else if (request.startsWith(RequestOID.ip)) {
+			return parseIP(response, variable, request);
+		}
+		else if (request.startsWith(RequestOID.enterprises)) {
+			if (request.startsWith(RequestOID.cisco)) {
+				return parseCisco(response, variable, request);
+			}
+			else {
+				return parseEnterprise(response, variable, request);
+			}
+		}
+		
+		return false;
+	}
+	
+	public final PDU getNextRequest(PDU request, PDU response) throws IOException {
+		Vector<? extends VariableBinding> requestVBs = request.getVariableBindings();
+		Vector<? extends VariableBinding> responseVBs = response.getVariableBindings();
+		Vector<VariableBinding> nextRequests = new Vector<VariableBinding>();
+		VariableBinding requestVB, responseVB;
+		Variable value;
+		
+		for (int i=0, length = responseVBs.size(); i<length; i++) {
+			requestVB = (VariableBinding)requestVBs.get(i);
+			responseVB = (VariableBinding)responseVBs.get(i);
+			value = responseVB.getVariable();
+			
+			if (value == Null.endOfMibView) {
+				continue;
+			}
+			
+			try {
+				if (parseResponse(responseVB.getOid(), value, requestVB.getOid())) {
+					nextRequests.add(responseVB);
+				}
+			} catch(JSONException jsone) {
+				Agent.log.sysLog(jsone.getMessage());
+			}
+		}
+		
+		this.nextPDU.clear();
+		this.nextPDU.setRequestID(new Integer32(0));
+		this.nextPDU.setVariableBindings(nextRequests);
+		
+		return nextRequests.size() > 0? this.nextPDU: null;
+	}
+		
+	public void parseResponse(ResponseEvent event) throws IOException {
+		PDU request = event.getRequest();
+		PDU response = event.getResponse();
+		
+		this.snmp.cancel(request, this);
+		
+		if (response == null || (Snmp)event.getSource() instanceof Snmp.ReportHandler) {
+			this.failureCount = Math.min(MAX_REQUEST, this.failureCount +1);
+			
+			onFailure();
+			
+			return;
+		}
+		
+		int status = response.getErrorStatus();
+		
+		if (status != PDU.noError) {
+			if (this.error.add(status)) {
+				throw new IOException(String.format("Node %s reports error status %d", this.target.getAddress(), status));
+			}
+			
+			onException(null);
+			
+			return;
+		}
+		
+		PDU nextRequest = getNextRequest(request, response);
+		
+		if (nextRequest == null) {
+			this.lastResponse = Calendar.getInstance().getTimeInMillis();
+			this.data.put("lastResponse", this.lastResponse);
+			
+			this.failureCount = Math.max(0, this.failureCount -1);
+			
+			this.isInitialized = true;
+			
+			onSuccess();
+			
+			this.data.put("hrProcessorEntry", this.hrProcessorEntry);
+			this.data.put("hrStorageEntry", this.hrStorageEntry);
+			this.data.put("ifEntry", this.ifEntry);
+		}
+		else {
+			sendRequest(nextRequest);
+		}
+	}
+	
+	@Override
+	public void onResponse(ResponseEvent event) {
+		try {
+			parseResponse(event);
+		} catch (IOException ioe) {
+			onException(ioe);
+		}
+	}
+	
+	abstract protected void onSuccess();
+	abstract protected void onFailure();
+	abstract protected void onException(Exception e);
+	
+	abstract protected boolean parseEnterprise(OID response, Variable variable, OID request);
+	
+	public static void main(String [] args) throws IOException {
+	}
+	
+}
