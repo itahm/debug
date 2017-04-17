@@ -122,9 +122,12 @@ public class Log implements Closeable {
 		this.log.put(Long.toString(index), logData);
 		
 		try {
-			this.dailyFile.write(this.log.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8.name()));
+			byte [] ba = this.log.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8.name());
+			this.dailyFile.write(ba);
 		} catch (IOException ioe) {
 			sysLog(Util.EToString(ioe));
+		} catch (NullPointerException npe) {
+			sysLog(Util.EToString(npe));
 		}
 		
 		synchronized(this.waiter) {

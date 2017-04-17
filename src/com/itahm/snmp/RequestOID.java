@@ -152,4 +152,11 @@ public class RequestOID {
 	public final static OID	busyPer = new OID(new int [] {1,3,6,1,4,1,9,2,1,5,6});
 	public final static OID	cpmCPUTotal5sec = new OID(new int [] {1,3,6,1,4,1,9,9,109,1,1,1,1,3});
 	public final static OID	cpmCPUTotal5secRev = new OID(new int [] {1,3,6,1,4,1,9,9,109,1,1,1,1,6});
+	
+	public final static OID	dasan = new OID(new int [] {1,3,6,1,4,1,6296});
+	public final static OID	dsCpuLoad5s = new OID(new int [] {1,3,6,1,4,1,6296,9,1,1,1,8});
+	public final static OID	dsTotalMem = new OID(new int [] {1,3,6,1,4,1,6296,9,1,1,1,14});
+	public final static OID	dsUsedMem = new OID(new int [] {1,3,6,1,4,1,6296,9,1,1,1,15});
+	
+	
 }

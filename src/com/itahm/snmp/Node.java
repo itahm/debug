@@ -40,6 +40,7 @@ public abstract class Node implements ResponseListener {
 	
 	private final static int MAX_REQUEST = 100;
 	private final static int CISCO = 9;
+	private final static int DASAN = 6296;
 	
 	protected PDU pdu;
 	private PDU nextPDU;
@@ -115,6 +116,12 @@ public abstract class Node implements ResponseListener {
 			this.pdu.add(new VariableBinding(RequestOID.cpmCPUTotal5sec));
 			this.pdu.add(new VariableBinding(RequestOID.cpmCPUTotal5secRev));
 			
+			break;
+			
+		case DASAN:
+			this.pdu.add(new VariableBinding(RequestOID.dsCpuLoad5s));
+			this.pdu.add(new VariableBinding(RequestOID.dsTotalMem));
+			this.pdu.add(new VariableBinding(RequestOID.dsUsedMem));
 			break;
 		}
 	}
@@ -403,6 +410,36 @@ public abstract class Node implements ResponseListener {
 		
 		return true;
 	}
+	
+	private final boolean parseDasan(OID response, Variable variable, OID request) {
+		String index = Integer.toString(response.last());
+		JSONObject storageData = this.hrStorageEntry.get(index);
+		
+		if (storageData == null) {
+			storageData = new JSONObject();
+			
+			this.hrStorageEntry.put("0", storageData = new JSONObject());
+			
+			storageData.put("hrStorageType", 2);
+			storageData.put("hrStorageAllocationUnits", 1);
+		}
+		
+		if (request.startsWith(RequestOID.dsCpuLoad5s) && response.startsWith(RequestOID.dsCpuLoad5s)) {
+			this.hrProcessorEntry.put(index, (int)((Integer32)variable).getValue());
+		}
+		else if (request.startsWith(RequestOID.dsTotalMem) && response.startsWith(RequestOID.dsTotalMem)) {
+			storageData.put("hrStorageSize", (int)((Integer32)variable).getValue());
+		}
+		else if (request.startsWith(RequestOID.dsUsedMem) && response.startsWith(RequestOID.dsUsedMem)) {
+			storageData.put("hrStorageUsed", (int)((Integer32)variable).getValue());
+		}
+		else {
+			return false;
+		}
+		
+		return true;
+	}
+	
 	/**
 	 * Parse.
 	 * 
@@ -437,6 +474,9 @@ public abstract class Node implements ResponseListener {
 			if (request.startsWith(RequestOID.cisco)) {
 				return parseCisco(response, variable, request);
 			}
+			else if (request.startsWith(RequestOID.dasan)) {
+				return parseDasan(response, variable, request);
+			}
 			else {
 				return parseEnterprise(response, variable, request);
 			}
@@ -465,8 +505,8 @@ public abstract class Node implements ResponseListener {
 				if (parseResponse(responseVB.getOid(), value, requestVB.getOid())) {
 					nextRequests.add(responseVB);
 				}
-			} catch(JSONException jsone) {
-				Agent.log.sysLog(jsone.getMessage());
+			} catch(Exception e) { // e: ClassCastException, JSONException
+				Agent.log.sysLog(e.getMessage());
 			}
 		}
 		

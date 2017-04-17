@@ -232,6 +232,7 @@ public class SNMPNode extends Node implements ICMPListener, Closeable {
 	private void parseProcessor() throws IOException {
 		long max = 0;
 		long value;
+		boolean submit = false;
 		
 		for(String index: super.hrProcessorEntry.keySet()) {
 			value = super.hrProcessorEntry.get(index);
@@ -243,9 +244,13 @@ public class SNMPNode extends Node implements ICMPListener, Closeable {
 			}
 			
 			max = Math.max(max, value);
+			
+			submit = true;
 		}
 	
-		this.agent.onSubmitTop(this.ip, SNMPAgent.Resource.PROCESSOR, max);
+		if (submit) {
+			this.agent.onSubmitTop(this.ip, SNMPAgent.Resource.PROCESSOR, max);
+		}
 	}
 	
 	private void parseStorage() throws IOException {
@@ -256,6 +261,7 @@ public class SNMPNode extends Node implements ICMPListener, Closeable {
 		long capacity;
 		long tmpValue;
 		int type;
+		boolean submit = false;
 		
 		for(String index: super.hrStorageEntry.keySet()) {
 			data = super.hrStorageEntry.get(index);
@@ -294,11 +300,15 @@ public class SNMPNode extends Node implements ICMPListener, Closeable {
 				
 				max = Math.max(max, value);
 				maxRate = Math.max(maxRate, tmpValue *100L / capacity);
+				
+				submit = true;
 			}
 		}
 		
-		this.agent.onSubmitTop(this.ip, SNMPAgent.Resource.STORAGE, max);
-		this.agent.onSubmitTop(this.ip, SNMPAgent.Resource.STORAGERATE, maxRate);
+		if (submit) {
+			this.agent.onSubmitTop(this.ip, SNMPAgent.Resource.STORAGE, max);
+			this.agent.onSubmitTop(this.ip, SNMPAgent.Resource.STORAGERATE, maxRate);
+		}
 	}
 	
 	private void parseInterface(JSONObject ifEntry) throws IOException {
@@ -312,6 +322,7 @@ public class SNMPNode extends Node implements ICMPListener, Closeable {
 		long max = 0;
 		long maxRate = 0;
 		long maxErr = 0;
+		boolean submit = false;
 		
 		for(String index: super.ifEntry.keySet()) {
 			// 특정 index가 새로 생성되었다면 보관된 값이 없을수도 있음.
@@ -418,11 +429,15 @@ public class SNMPNode extends Node implements ICMPListener, Closeable {
 			if (this.critical != null) {
 				this.critical.analyze(Critical.Resource.THROUGHPUT, index, capacity, max);
 			}
+			
+			submit = true;
 		}
 		
-		this.agent.onSubmitTop(this.ip, SNMPAgent.Resource.THROUGHPUT, max);
-		this.agent.onSubmitTop(this.ip, SNMPAgent.Resource.THROUGHPUTRATE, maxRate);
-		this.agent.onSubmitTop(this.ip, SNMPAgent.Resource.THROUGHPUTERR, maxErr);
+		if (submit) {
+			this.agent.onSubmitTop(this.ip, SNMPAgent.Resource.THROUGHPUT, max);
+			this.agent.onSubmitTop(this.ip, SNMPAgent.Resource.THROUGHPUTRATE, maxRate);
+			this.agent.onSubmitTop(this.ip, SNMPAgent.Resource.THROUGHPUTERR, maxErr);
+		}
 	}
 	
 	private void processSuccess() throws IOException {		
