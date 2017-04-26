@@ -91,6 +91,10 @@ public class Log implements Closeable {
 		return index;
 	}
 	
+	public String getSysLog(long mills) throws IOException {
+		return new String(this.sysLog.read(mills), StandardCharsets.UTF_8.name());
+	}
+	
 	public void write(String ip, String message, String type, boolean status, boolean broadcast) {
 		JSONObject logData = new JSONObject();
 		long index;

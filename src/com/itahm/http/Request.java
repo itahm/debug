@@ -172,6 +172,13 @@ public class Request implements Closeable {
 		
 		this.method = token[0];
 		this.uri = token[1];
+		
+		int i = this.uri.indexOf("?");
+		
+		if (i != -1) {
+			this.uri = this.uri.substring(0, i);
+		}
+		
 		this.version = token[2];
 		
 		this.header.clear();

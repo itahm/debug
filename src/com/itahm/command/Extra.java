@@ -26,6 +26,7 @@ public class Extra implements Command {
 		LOG,
 		ARP,
 		LINK,
+		SYSLOG,
 		ENTERPRISE;
 	};
 	
@@ -101,6 +102,8 @@ public class Extra implements Command {
 				return Response.getInstance(request, Response.Status.OK, table.save().toString());
 			case ENTERPRISE:
 				return Agent.snmp.executeEnterprise(request, data);
+			case SYSLOG:
+				return Response.getInstance(request, Response.Status.OK, Agent.log.getSysLog(data.getLong("date")));
 				
 			}
 		}
