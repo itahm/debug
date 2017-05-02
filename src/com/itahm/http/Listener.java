@@ -215,7 +215,7 @@ public abstract class Listener extends Timer implements Runnable, Closeable {
 				Response response;
 				
 				if (!"HTTP/1.1".equals(request.getRequestVersion())) {
-					response = Response.getInstance(request, Response.Status.VERSIONNOTSUP);
+					response = Response.getInstance(Response.Status.VERSIONNOTSUP);
 				}
 				else {
 					if (method.toLowerCase().equals("get")) {
@@ -223,14 +223,17 @@ public abstract class Listener extends Timer implements Runnable, Closeable {
 							uri = "/index.html";
 						}
 						
-						response = Response.getInstance(Response.Status.OK, new File("."+ uri));
-							
-						if (response == null) {
-							response = Response.getInstance(request, Response.Status.NOTFOUND);
+						try {
+							response = Response.getInstance(new File("."+ uri));
+							if (response == null) {
+								throw new IOException();
+							}
+						} catch (IOException e) {
+							response = Response.getInstance(Response.Status.NOTFOUND);
 						}
 					}
 					else {
-						response = Response.getInstance(request, Response.Status.NOTALLOWED);
+						response = Response.getInstance(Response.Status.NOTALLOWED);
 					}
 				}
 				

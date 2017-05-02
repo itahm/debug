@@ -37,7 +37,7 @@ public class JSONFile implements Closeable{
 		}
 	}
 	
-	private static JSONObject getJSONObject(FileChannel fc) throws IOException {
+	public static JSONObject getJSONObject(FileChannel fc) throws IOException {
 		long size = fc.size();
 		
 		if (size != (int)size) {

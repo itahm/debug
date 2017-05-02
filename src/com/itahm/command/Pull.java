@@ -19,7 +19,7 @@ public class Pull implements Command {
 			Table table = Agent.getTable(data.getString("database"));
 			
 			if (table == null) {
-				return Response.getInstance(request, Response.Status.BADREQUEST,
+				return Response.getInstance(Response.Status.BADREQUEST,
 					new JSONObject().put("error", "database not found").toString());
 			}
 			else {
@@ -33,11 +33,11 @@ public class Pull implements Command {
 					data = table.getJSONObject();
 				}
 				
-				return Response.getInstance(request, Response.Status.OK, data.toString());
+				return Response.getInstance(Response.Status.OK, data.toString());
 			}
 		}
 		catch (JSONException jsone) {
-			return Response.getInstance(request, Response.Status.BADREQUEST,
+			return Response.getInstance(Response.Status.BADREQUEST,
 				new JSONObject().put("error", "invalid json request").toString());
 		}
 	}

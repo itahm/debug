@@ -25,7 +25,7 @@ public class Response {
 		OK, BADREQUEST, UNAUTHORIZED, NOTFOUND, NOTALLOWED, VERSIONNOTSUP, CONFLICT, UNAVAILABLE, SERVERERROR
 	};
 	
-	private Response(Status status, byte [] bytes) {
+	private Response(Status status, byte [] body) {
 		int code = 200;
 		String reason = "OK";
 		
@@ -34,35 +34,15 @@ public class Response {
 			code = 400;
 			reason = "Bad request";
 			
-			try {
-				bytes = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"></head><body><h1>HTTP1.1 400 Bad request</h1></body></html>"
-					.getBytes(StandardCharsets.UTF_8.name());
-			} catch (UnsupportedEncodingException e) {
-			}
-			
 			break;
 		case NOTFOUND:
 			code = 404;
 			reason = "Not found";
 			
-			try {
-				bytes = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"></head><body><h1>HTTP1.1 404 Not found</h1></body></html>"
-					.getBytes(StandardCharsets.UTF_8.name());
-			} catch (UnsupportedEncodingException e) {
-			}
-			
-			body = bytes;
-			
 			break;
 		case NOTALLOWED:
 			code = 405;
 			reason = "Method Not Allowed";
-		
-			try {
-				bytes = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"></head><body><h1>HTTP1.1 405 Method Not Allowed</h1></body></html>"
-					.getBytes(StandardCharsets.UTF_8.name());
-			} catch (UnsupportedEncodingException e) {
-			}
 			
 			setResponseHeader("Allow", "GET");
 			
@@ -71,112 +51,88 @@ public class Response {
 			code = 401;
 			reason = "Unauthorized";
 			
-			try {
-				bytes = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"></head><body><h1>HTTP1.1 401 Unauthorized</h1></body></html>"
-					.getBytes(StandardCharsets.UTF_8.name());
-			} catch (UnsupportedEncodingException e) {
-			}
-			
 			break;
 		case SERVERERROR:
 			code = 500;
 			reason = "Internal Server Error";
-			
-			try {
-				bytes = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"></head><body><h1>HTTP1.1 500 Internal Server Error</h1></body></html>"
-					.getBytes(StandardCharsets.UTF_8.name());
-			} catch (UnsupportedEncodingException e) {
-			}
 			
 			break;
 		case VERSIONNOTSUP:
 			code = 505;
 			reason = "HTTP Version Not Supported";
 			
-			try {
-				bytes = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"></head><body><h1>HTTP1.1 505 HTTP Version Not Supported</h1></body></html>"
-					.getBytes(StandardCharsets.UTF_8.name());
-			} catch (UnsupportedEncodingException e) {
-			}
-			
 			break;
 		case CONFLICT:
 			code = 409;
 			reason = "Conflict";
-			
-			try {
-				bytes = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"></head><body><h1>HTTP1.1 409 Conflict</h1></body></html>"
-					.getBytes(StandardCharsets.UTF_8.name());
-			} catch (UnsupportedEncodingException e) {
-			}
 			
 			break;
 		case UNAVAILABLE:
 			code = 503;
 			reason = "Service Unavailable";
 			
-			try {
-				bytes = "<!DOCTYPE html><html><head><meta charset=\"UTF-8\"></head><body><h1>HTTP1.1 503 Service Unavailable</h1></body></html>"
-					.getBytes(StandardCharsets.UTF_8.name());
-			} catch (UnsupportedEncodingException e) {
-			}
 		case OK:
 		}
 		
-		startLine = String.format("HTTP/1.1 %d %s" +CRLF, code, reason);
+		this.startLine = String.format("HTTP/1.1 %d %s" +CRLF, code, reason);
 		
-		body = bytes;
+		this.body = body;
 	}
 	
-	private Response(Request request, Status status, byte [] bytes) {
-		this(status, bytes);
-		
-		String origin = request.getRequestHeader(Request.Header.ORIGIN);
-		
-		if (origin == null) {
-			origin = "http://itahm.com";
-		}
-		
-		setResponseHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
-		setResponseHeader("Access-Control-Allow-Origin", origin);
-		setResponseHeader("Access-Control-Allow-Credentials", "true");
-	}
-	
-	public static Response getInstance(Request request, Status status) {
-		return new Response(request, status, new byte [0]);
-	}
-	
-	public static Response getInstance(Request request, Status status, String body) {
+	/**
+	 * 
+	 * @param request
+	 * @param status
+	 * @param body
+	 * @return
+	 * 
+	 */
+	public static Response getInstance(Status status, String body) {
 		try {
-			return new Response(request, status, body.getBytes(StandardCharsets.UTF_8.name()));
+			return new Response(status, body.getBytes(StandardCharsets.UTF_8.name()));
 		} catch (UnsupportedEncodingException e) {
 			return null;
 		}
 	}
 	
-	public static Response getInstance(Status status, File body) {
-		try (RandomAccessFile raf = new RandomAccessFile(body, "r")) {
-			FileChannel fc = raf.getChannel();
-			int size = (int)fc.size();
-			ByteBuffer buffer = ByteBuffer.allocate(size);
-			byte [] bytes;
-			
-			fc.read(buffer);
-			
-			buffer.flip();
-			
-			bytes = new byte [buffer.remaining()];
-			
-			buffer.get(bytes);
-			
-			return new Response(status, bytes).setResponseHeader("Content-type", Files.probeContentType(body.toPath()));
-		} catch (IOException ioe) {
-			return null;
-		}
-	}
-	
+	/**
+	 * 
+	 * @param status
+	 * @return
+	 */
 	public static Response getInstance(Status status) {
 		return new Response(status, new byte[0]);
+	}
+	
+	/**
+	 * 
+	 * @param url
+	 * @return
+	 * @throws IOException
+	 */
+	public static Response getInstance(File url) throws IOException {
+		try (RandomAccessFile raf = new RandomAccessFile(url, "r")) {
+			FileChannel fc = raf.getChannel();
+			long size = fc.size();
+			
+			if (size != (int)size) {
+				throw new IOException("file size " +size);
+			}
+			
+			ByteBuffer bb = ByteBuffer.allocate((int)size);
+			
+			while (size > 0) {
+				size -= fc.read(bb);
+			}
+			
+			bb.flip();
+			
+			byte [] body = new byte [bb.remaining()];
+			
+			bb.get(body);
+			
+			return new Response(Status.OK, body).setResponseHeader("Content-type", Files.probeContentType(url.toPath()));
+		}
 	}
 	
 	public Response setResponseHeader(String name, String value) {
@@ -184,7 +140,7 @@ public class Response {
 		
 		return this;
 	}
-	
+	/*
 	public Response setResponseBody(String body) {
 		try {
 			this.body = body.getBytes(StandardCharsets.UTF_8.name());
@@ -194,7 +150,7 @@ public class Response {
 		
 		return this;
 	}
-	
+	*/
 	public ByteBuffer build() throws IOException {
 		if (this.startLine == null || this.body == null) {
 			throw new IOException("malformed http request!");

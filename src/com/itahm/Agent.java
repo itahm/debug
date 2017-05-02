@@ -179,7 +179,7 @@ public class Agent implements ITAhMAgent {
 	@Override
 	public Response executeRequest(Request request, JSONObject data) {
 		if (this.isClosed) {
-			return Response.getInstance(request, Response.Status.SERVERERROR);
+			return Response.getInstance(Response.Status.SERVERERROR);
 		}
 		
 		String cmd = data.getString("command");
@@ -190,15 +190,15 @@ public class Agent implements ITAhMAgent {
 				try {
 					session = signIn(data);
 				} catch (JSONException jsone) {
-					return Response.getInstance(request, Response.Status.BADREQUEST, new JSONObject().put("error", "invalid json request").toString());
+					return Response.getInstance(Response.Status.BADREQUEST, new JSONObject().put("error", "invalid json request").toString());
 				}
 			}
 			
 			if (session == null) {
-				return Response.getInstance(request, Response.Status.UNAUTHORIZED);
+				return Response.getInstance(Response.Status.UNAUTHORIZED);
 			}
 			
-			return Response.getInstance(request, Response.Status.OK, new JSONObject()
+			return Response.getInstance(Response.Status.OK, new JSONObject()
 				.put("level", (int)session.getExtras())
 				.put("version", VERSION).toString())
 					.setResponseHeader("Set-Cookie", String.format("SESSION=%s; HttpOnly", session.getCookie()));
@@ -209,13 +209,13 @@ public class Agent implements ITAhMAgent {
 				session.close();
 			}
 			
-			return Response.getInstance(request, Response.Status.OK);
+			return Response.getInstance(Response.Status.OK);
 		}
 		
 		Command command = Commander.getCommand(cmd);
 		
 		if (command == null) {
-			return Response.getInstance(request, Response.Status.BADREQUEST, new JSONObject().put("error", "invalid command").toString());
+			return Response.getInstance(Response.Status.BADREQUEST, new JSONObject().put("error", "invalid command").toString());
 		}
 		
 		try {
@@ -228,10 +228,10 @@ public class Agent implements ITAhMAgent {
 			}
 		}
 		catch (IOException ioe) {
-			return Response.getInstance(request, Response.Status.UNAVAILABLE, new JSONObject().put("error", ioe).toString());
+			return Response.getInstance(Response.Status.UNAVAILABLE, new JSONObject().put("error", ioe).toString());
 		}
 			
-		return Response.getInstance(request, Response.Status.UNAUTHORIZED);
+		return Response.getInstance(Response.Status.UNAUTHORIZED);
 	}
 
 	@Override

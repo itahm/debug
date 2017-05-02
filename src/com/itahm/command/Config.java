@@ -69,16 +69,16 @@ public class Config implements Command {
 				
 				table.save();
 				
-				return Response.getInstance(request, Response.Status.OK);
+				return Response.getInstance(Response.Status.OK);
 			default:
-				return Response.getInstance(request, Response.Status.BADREQUEST,
+				return Response.getInstance(Response.Status.BADREQUEST,
 					new JSONObject().put("error", "invalid config parameter").toString());
 			}
 			
-			return Response.getInstance(request, Response.Status.OK);
+			return Response.getInstance(Response.Status.OK);
 		}
 		catch (JSONException jsone) {
-			return Response.getInstance(request, Response.Status.BADREQUEST,
+			return Response.getInstance(Response.Status.BADREQUEST,
 				new JSONObject().put("error", "invalid json request").toString());
 		}
 	}

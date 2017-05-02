@@ -104,7 +104,13 @@ public abstract class Node implements ResponseListener {
 		
 		
 		// target 설정
-		target = new CommunityTarget(new UdpAddress(InetAddress.getByName(ip), udp), community);
+		try {
+			target = new CommunityTarget(new UdpAddress(InetAddress.getByName(ip), udp), community);
+		}
+		catch (IOException nhe) {
+			throw nhe;
+		}
+		
 		target.setVersion(SnmpConstants.version2c);
 		target.setTimeout(timeout);
 	}
@@ -143,11 +149,7 @@ public abstract class Node implements ResponseListener {
 		sendRequest(this.pdu);
 	}
 	
-	public void getFailureRate(JSONObject json) {
-		json.put("failure", this.failureCount);
-	}
-	
-	public long getFailureRate() {
+	public long getFailureRate() {		
 		return this.failureCount;
 	}
 	
@@ -167,6 +169,7 @@ public abstract class Node implements ResponseListener {
 	
 	private final void sendRequest(PDU pdu) throws IOException {
 		this.snmp.send(pdu, this.target, null, this);
+		//this.onResponse(this.snmp.send(pdu, this.target));
 	}
 	
 	private final boolean parseSystem(OID response, Variable variable, OID request) {
@@ -520,12 +523,16 @@ public abstract class Node implements ResponseListener {
 	public void parseResponse(ResponseEvent event) throws IOException {
 		PDU request = event.getRequest();
 		PDU response = event.getResponse();
-		
+		if (this.target.getAddress().toString().indexOf("121.187.216.238") > -1) {
+			System.out.println(event.getResponse());
+		}
 		this.snmp.cancel(request, this);
 		
 		if (response == null || (Snmp)event.getSource() instanceof Snmp.ReportHandler) {
 			this.failureCount = Math.min(MAX_REQUEST, this.failureCount +1);
-			
+			if (this.target.getAddress().toString().indexOf("121.187.216.238") > -1) {
+				System.out.println("fail "+ this.failureCount + " " + response);
+			}
 			onFailure();
 			
 			return;
@@ -550,7 +557,9 @@ public abstract class Node implements ResponseListener {
 			this.data.put("lastResponse", this.lastResponse);
 			
 			this.failureCount = Math.max(0, this.failureCount -1);
-			
+			if (this.target.getAddress().toString().indexOf("121.187.216.238") > -1) {
+				System.out.println("success "+ this.failureCount);
+			}
 			this.isInitialized = true;
 			
 			onSuccess();

@@ -11,6 +11,7 @@ import java.util.Calendar;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.itahm.json.JSONFile;
 import com.itahm.json.JSONObject;
 
 import com.itahm.http.Request;
@@ -57,24 +58,16 @@ public class Log implements Closeable {
 	}
 	
 	private void loadIndex() throws IOException {
-		int size = (int)this.indexChannel.size();
+		JSONObject jsono = JSONFile.getJSONObject(this.indexChannel);
 		
-		if (size == 0) {
+		if (jsono == null) {
 			this.indexObject = new JSONObject();
 			
 			this.indexObject.put("index", this.index = 0);
 		}
 		else {
-			ByteBuffer buffer = ByteBuffer.allocate(size);
-			byte[] bytes = new byte [size];
+			this.indexObject = jsono;
 			
-			this.indexChannel.read(buffer);
-
-			buffer.flip();
-			
-			buffer.get(bytes);
-			
-			this.indexObject = new JSONObject(new String(bytes));
 			this.index = this.indexObject.getLong("index");
 		}
 	}
@@ -92,7 +85,13 @@ public class Log implements Closeable {
 	}
 	
 	public String getSysLog(long mills) throws IOException {
-		return new String(this.sysLog.read(mills), StandardCharsets.UTF_8.name());
+		byte [] sysLog = this.sysLog.read(mills);
+		
+		if (sysLog == null) {
+			sysLog = new byte [0];
+		}
+		
+		return new String(sysLog, StandardCharsets.UTF_8.name());
 	}
 	
 	public void write(String ip, String message, String type, boolean status, boolean broadcast) {
@@ -135,9 +134,14 @@ public class Log implements Closeable {
 		}
 		
 		synchronized(this.waiter) {
+			Response response;
+			
 			for (Request request : this.waiter) {
 				try {
-					request.sendResponse(Response.getInstance(request, Response.Status.OK, logData.toString()));
+					
+					response = Response.getInstance(Response.Status.OK, logData.toString());
+					
+					ITAhM.sendRequest(request, response);
 				} catch (IOException ioe) {
 					sysLog(Util.EToString(ioe));
 				}
@@ -191,7 +195,7 @@ public class Log implements Closeable {
 		
 		synchronized(this.log) {
 			if (this.log.has(index)) {
-				request.sendResponse(Response.getInstance(request, Response.Status.OK, this.log.getJSONObject(index).toString()));
+				request.sendResponse(Response.getInstance(Response.Status.OK, this.log.getJSONObject(index).toString()));
 			}
 			else {
 				this.waiter.add(request);

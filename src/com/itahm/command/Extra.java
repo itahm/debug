@@ -38,16 +38,16 @@ public class Extra implements Command {
 			case RESET:
 				Agent.snmp.resetResponse(data.getString("ip"));
 				
-				return Response.getInstance(request, Response.Status.OK);
+				return Response.getInstance(Response.Status.OK);
 			case FAILURE:
 				JSONObject json = Agent.snmp.getFailureRate(data.getString("ip"));
 				
 				if (json == null) {
-					return Response.getInstance(request, Response.Status.BADREQUEST,
+					return Response.getInstance(Response.Status.BADREQUEST,
 						new JSONObject().put("error", "node not found").toString());
 				}
 				
-				return Response.getInstance(request, Response.Status.OK, json.toString());
+				return Response.getInstance(Response.Status.OK, json.toString());
 			case SEARCH:
 				Network network = new Network(InetAddress.getByName(data.getString("network")).getAddress(), data.getInt("mask"));
 				Iterator<String> it = network.iterator();
@@ -56,29 +56,29 @@ public class Extra implements Command {
 					Agent.snmp.testNode(it.next(), false);
 				}
 				
-				return Response.getInstance(request, Response.Status.OK);
+				return Response.getInstance(Response.Status.OK);
 			case MESSAGE:
 				if (Agent.gcmm == null) {
-					return Response.getInstance(request, Response.Status.BADREQUEST,
+					return Response.getInstance(Response.Status.BADREQUEST,
 						new JSONObject().put("error", "gcm not enabled").toString());
 				}
 				
 				Agent.gcmm.broadcast(data.getString("message"));
 				
-				return Response.getInstance(request, Response.Status.OK);
+				return Response.getInstance(Response.Status.OK);
 			case TOP:
 				int count = TOP_MAX;
 				if (data.has("count")) {
 					count = Math.min(data.getInt("count"), TOP_MAX);
 				}
 				
-				return Response.getInstance(request, Response.Status.OK, Agent.snmp.getTop(count).toString());
+				return Response.getInstance(Response.Status.OK, Agent.snmp.getTop(count).toString());
 			case NETWORK:
-				return Response.getInstance(request, Response.Status.OK, Agent.snmp.getNetwork().toString());
+				return Response.getInstance(Response.Status.OK, Agent.snmp.getNetwork().toString());
 			case LOG:
-				return Response.getInstance(request, Response.Status.OK, Agent.log.read(data.getLong("date")));
+				return Response.getInstance(Response.Status.OK, Agent.log.read(data.getLong("date")));
 			case ARP:
-				return Response.getInstance(request, Response.Status.OK, Agent.snmp.getARP().toString());
+				return Response.getInstance(Response.Status.OK, Agent.snmp.getARP().toString());
 			case LINK:
 				Table table = Agent.getTable("device");
 				JSONObject deviceData = table.getJSONObject();
@@ -99,25 +99,24 @@ public class Extra implements Command {
 					ifEntry2.remove(ip1);
 				}
 				
-				return Response.getInstance(request, Response.Status.OK, table.save().toString());
+				return Response.getInstance(Response.Status.OK, table.save().toString());
 			case ENTERPRISE:
 				return Agent.snmp.executeEnterprise(request, data);
 			case SYSLOG:
-				return Response.getInstance(request, Response.Status.OK, Agent.log.getSysLog(data.getLong("date")));
-				
+				return Response.getInstance(Response.Status.OK, new JSONObject().put("log", Agent.log.getSysLog(data.getLong("date"))).toString());
 			}
 		}
-		catch (NullPointerException npe) {
-			return Response.getInstance(request, Response.Status.UNAVAILABLE);
+		catch (NullPointerException npe) {npe.printStackTrace();
+			return Response.getInstance(Response.Status.UNAVAILABLE);
 		}
 		catch (JSONException jsone) {
-			return Response.getInstance(request, Response.Status.BADREQUEST,
+			return Response.getInstance(Response.Status.BADREQUEST,
 					new JSONObject().put("error", "invalid json request").toString());
 		}
 		catch(IllegalArgumentException iae) {
 		}
 		
-		return Response.getInstance(request, Response.Status.BADREQUEST,
+		return Response.getInstance(Response.Status.BADREQUEST,
 			new JSONObject().put("error", "invalid extra").toString());
 	}
 

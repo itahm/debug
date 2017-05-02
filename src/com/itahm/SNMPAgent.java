@@ -508,9 +508,7 @@ public class SNMPAgent extends Snmp implements Closeable {
 			return null;
 		}
 		
-		JSONObject json = new JSONObject();
-		
-		node.getFailureRate(json);
+		JSONObject json = new JSONObject().put("failure", node.getFailureRate());
 		
 		return json;
 	}
@@ -743,7 +741,7 @@ public class SNMPAgent extends Snmp implements Closeable {
 	
 	public Response executeEnterprise(Request request, JSONObject data) {
 		if (this.enterprise == null) {
-			return Response.getInstance(request, Response.Status.BADREQUEST,
+			return Response.getInstance(Response.Status.BADREQUEST,
 					new JSONObject().put("error", "enterprise is not set").toString());
 		}
 		

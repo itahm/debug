@@ -1,5 +1,6 @@
 package com.itahm;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -60,21 +61,36 @@ public class ITAhM extends Listener {
 		this.agent.closeRequest(request);
 	}
 	
+	public static void sendRequest(Request request, Response response) throws IOException {
+		String origin = request.getRequestHeader(Request.Header.ORIGIN);
+		
+		if (origin == null) {
+			origin = "http://itahm.com";
+		}
+	
+		//response.setResponseHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
+		response.setResponseHeader("Access-Control-Allow-Origin", origin);
+		response.setResponseHeader("Access-Control-Allow-Credentials", "true");
+		
+		request.sendResponse(response);
+	}
+	
 	private void processRequest(Request request) throws IOException{
 		Response response = parseRequest(request);
 		
 		if (response != null) { /* listen인 경우 null*/
-			request.sendResponse(response);
+			sendRequest(request, response);
 		}
 	}
+	
 	private Response parseRequest(Request request) throws IOException{
 		if (!"HTTP/1.1".equals(request.getRequestVersion())) {
-			return Response.getInstance(request, Response.Status.VERSIONNOTSUP);
+			return Response.getInstance(Response.Status.VERSIONNOTSUP);
 		}
 		
 		switch(request.getRequestMethod()) {
 		case "OPTIONS":
-			return Response.getInstance(request, Response.Status.OK).setResponseHeader("Allow", "OPTIONS, GET, POST");
+			return Response.getInstance(Response.Status.OK).setResponseHeader("Allow", "GET, POST");
 		
 		case"POST":
 			JSONObject data;
@@ -83,30 +99,24 @@ public class ITAhM extends Listener {
 				data = new JSONObject(new String(request.getRequestBody(), StandardCharsets.UTF_8.name()));
 				
 				if (!data.has("command")) {
-					return Response.getInstance(request, Response.Status.BADREQUEST, new JSONObject().put("error", "command not found").toString());
+					return Response.getInstance(Response.Status.BADREQUEST, new JSONObject().put("error", "command not found").toString());
 				}
 			} catch (JSONException e) {
-				return Response.getInstance(request, Response.Status.BADREQUEST, new JSONObject().put("error", "invalid json request").toString());
+				return Response.getInstance(Response.Status.BADREQUEST, new JSONObject().put("error", "invalid json request").toString());
 			} catch (UnsupportedEncodingException e) {
-				return Response.getInstance(request, Response.Status.BADREQUEST, new JSONObject().put("error", "UTF-8 encoding required").toString());
+				return Response.getInstance(Response.Status.BADREQUEST, new JSONObject().put("error", "UTF-8 encoding required").toString());
 			}
 			
 			return this.agent.executeRequest(request, data);
 			
 		case "GET":
-			Response response = null;
 			File uri = new File(this.root, request.getRequestURI());
-			
-			if (uri.isFile()) {
-				response = Response.getInstance(Response.Status.OK, uri);
+			try {
+				return Response.getInstance(uri);
 			}
-			
-			if (response != null) {
-				return response;
+			catch (FileNotFoundException fnfe) {
+				return Response.getInstance(Response.Status.NOTFOUND);
 			}
-				
-			return Response.getInstance(Response.Status.NOTFOUND);
-			
 		}
 		
 		return Response.getInstance(Response.Status.NOTALLOWED).setResponseHeader("Allow", "OPTIONS, POST, GET");
@@ -128,13 +138,7 @@ public class ITAhM extends Listener {
 						
 						byte [] buffer = new byte [1024];
 						
-						while(true) {
-							length = is.read(buffer);
-							
-							if (length == -1) {
-								break;
-							}
-							
+						while((length = is.read(buffer)) != -1) {
 							fos.write(buffer, 0, length);
 						}
 					}
