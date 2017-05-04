@@ -1,6 +1,5 @@
 package com.itahm;
 
-import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.net.UnknownHostException;
@@ -13,13 +12,12 @@ import org.snmp4j.smi.Variable;
 
 import com.itahm.json.JSONException;
 import com.itahm.json.JSONObject;
-import com.itahm.icmp.ICMPListener;
 import com.itahm.json.RollingFile;
 import com.itahm.snmp.Node;
 import com.itahm.table.Table;
 import com.itahm.util.Util;
 
-public class SNMPNode extends Node implements ICMPListener, Closeable {
+public class SNMPNode extends Node {
 	
 	private final static OID OID_TRAP = new OID(new int [] {1,3,6,1,6,3,1,1,5});
 	private final static OID OID_LINKDOWN = new OID(new int [] {1,3,6,1,6,3,1,1,5,3});
@@ -51,8 +49,6 @@ public class SNMPNode extends Node implements ICMPListener, Closeable {
 	private final Map<Rolling, HashMap<String, RollingFile>> rollingMap = new HashMap<Rolling, HashMap<String, RollingFile>>();
 	private String ip;
 	private SNMPAgent agent;
-	private ICMPNode icmp;
-	private long responseTime;
 	private long lastRolling = 0;
 	private Critical critical;
 	
@@ -88,8 +84,6 @@ public class SNMPNode extends Node implements ICMPListener, Closeable {
 		this.agent = agent;
 		this.ip = ip;
 		
-		this.icmp = new ICMPNode(this, ip);
-		
 		this.nodeRoot = new File(agent.nodeRoot, ip);
 		this.nodeRoot.mkdirs();
 		
@@ -100,8 +94,6 @@ public class SNMPNode extends Node implements ICMPListener, Closeable {
 		}
 		
 		setCritical(criticalCondition);
-		
-		icmp.start();
 	}
 	
 	public String getAddress() {
@@ -224,9 +216,9 @@ public class SNMPNode extends Node implements ICMPListener, Closeable {
 	}
 	
 	private void parseResponseTime() throws IOException {
-		putData(Rolling.RESPONSETIME, "0", this.responseTime);
+		putData(Rolling.RESPONSETIME, "0", super.responseTime);
 		
-		this.agent.onSubmitTop(this.ip, SNMPAgent.Resource.RESPONSETIME, this.responseTime);
+		this.agent.onSubmitTop(this.ip, SNMPAgent.Resource.RESPONSETIME, super.responseTime);
 	}
 	
 	private void parseProcessor() throws IOException {
@@ -466,41 +458,25 @@ public class SNMPNode extends Node implements ICMPListener, Closeable {
 			}
 		}
 	}
-	
+
 	@Override
-	public void onSuccess() {
-		try {
-			processSuccess();
-		} catch (IOException ioe) {
-			Agent.log(Util.EToString(ioe));
+	protected void onResponse(boolean success) {
+		if (success) {
+			try {
+				processSuccess();
+			} catch (IOException ioe) {
+				Agent.log(Util.EToString(ioe));
+			}
+			
+			this.lastRolling = super.lastResponse;
+			
+			this.agent.onResponse(this.ip);
+		}
+		else {
+			this.agent.onTimeout(this.ip);
 		}
 		
 		this.agent.onSubmitTop(this.ip, SNMPAgent.Resource.FAILURERATE, getFailureRate());
-		
-		this.lastRolling = super.lastResponse;
-		
-		this.agent.onResponse(this.ip);
-	}
-
-	@Override
-	protected void onFailure() {
-		this.agent.onSubmitTop(this.ip, SNMPAgent.Resource.FAILURERATE, getFailureRate());
-		
-		this.agent.onTimeout(this.ip);
-	}
-	
-	@Override
-	public void onSuccess(String host, long time) {
-		this.responseTime = time;
-		
-		super.data.put("responseTime", time);
-		
-		this.agent.onSuccess(this.ip);
-	}
-
-	@Override
-	public void onFailure(String host) {
-		this.agent.onFailure(this.ip);
 	}
 
 	@Override
@@ -511,19 +487,20 @@ public class SNMPNode extends Node implements ICMPListener, Closeable {
 		
 		this.agent.onException(this.ip);
 	}
-	
-	@Override
-	public void close() throws IOException {
-		try {
-			this.icmp.stop();
-		} catch (InterruptedException ie) {
-			Agent.log(Util.EToString(ie));
-		}
-	}
 
 	@Override
 	protected boolean parseEnterprise(OID response, Variable variable, OID request) {
 		return this.agent.parseEnterprise(this, response, variable, request);
+	}
+
+	@Override
+	protected void onICMPResponse(long mills) {
+		if (mills < 0) {
+			this.agent.onFailure(this.ip);
+		}
+		else {
+			this.agent.onSuccess(this.ip);
+		}
 	}
 	
 }

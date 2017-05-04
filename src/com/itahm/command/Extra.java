@@ -106,7 +106,7 @@ public class Extra implements Command {
 				return Response.getInstance(Response.Status.OK, new JSONObject().put("log", Agent.log.getSysLog(data.getLong("date"))).toString());
 			}
 		}
-		catch (NullPointerException npe) {npe.printStackTrace();
+		catch (NullPointerException npe) {
 			return Response.getInstance(Response.Status.UNAVAILABLE);
 		}
 		catch (JSONException jsone) {

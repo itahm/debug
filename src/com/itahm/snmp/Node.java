@@ -9,6 +9,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.Vector;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 import com.itahm.Agent;
 import com.itahm.json.JSONException;
@@ -21,7 +23,6 @@ import org.snmp4j.Snmp;
 import org.snmp4j.Target;
 import org.snmp4j.UserTarget;
 import org.snmp4j.event.ResponseEvent;
-import org.snmp4j.event.ResponseListener;
 import org.snmp4j.mp.SnmpConstants;
 import org.snmp4j.smi.Counter32;
 import org.snmp4j.smi.Counter64;
@@ -36,22 +37,42 @@ import org.snmp4j.smi.UdpAddress;
 import org.snmp4j.smi.Variable;
 import org.snmp4j.smi.VariableBinding;
 
-public abstract class Node implements ResponseListener {
+public abstract class Node extends Thread {
+	
+	interface Request {
+		public void send();
+	}
+	
+	class Ping implements Request {
+
+		@Override
+		public void send() {
+			// TODO Auto-generated method stub
+			
+		}
+		
+	}
 	
 	private final static int MAX_REQUEST = 100;
 	private final static int CISCO = 9;
 	private final static int DASAN = 6296;
 	
-	protected PDU pdu;
+	public PDU pdu;
 	private PDU nextPDU;
 	private final Snmp snmp;
+	private final InetAddress ip;
+	
 	private Target target;
-	protected long lastResponse;
 	private Integer enterprise;
 	private long failureCount = 0;
 	private boolean isInitialized = false;
 	private final Set<Integer> error = new HashSet<>();
+	private final BlockingQueue<PDU> bq = new LinkedBlockingQueue<>();
+	private final int timeout;
+	private boolean processing = false;
 	
+	protected long lastResponse;
+	protected long responseTime;
 	/**
 	 * 이전 데이터 보관소
 	 */
@@ -70,12 +91,49 @@ public abstract class Node implements ResponseListener {
 	protected final Map<String, String> networkTable = new HashMap<>(); //ip - mask
 	protected final Map<Integer, String> maskTable = new HashMap<>(); //index - mask
 	
-	public Node(Snmp snmp) throws IOException {
+	public Node(Snmp snmp, String ip, int timeout) throws IOException {
 		this.snmp = snmp;
+		this.ip = InetAddress.getByName(ip);
+		this.timeout = timeout;
+		
+		start();
 	}
 	
-	public Node(Snmp snmp, String ip, int udp, OctetString user, int level, long timeout) throws IOException {
-		this(snmp);
+	@Override
+	public void run() {
+		PDU pdu;
+		long sent;
+		
+		while (!Thread.interrupted()) {
+			try {
+				pdu = this.bq.take();
+		
+				if (!this.processing) {
+					this.processing = true;
+					
+					sent = Calendar.getInstance().getTimeInMillis();
+					
+					if (!this.ip.isReachable(timeout)) {
+						
+						continue;
+					}
+					
+					data.put("responseTime", this.responseTime = Calendar.getInstance().getTimeInMillis() - sent);
+				}
+				
+				parseResponse(this.snmp.send(pdu, this.target));
+			} catch (InterruptedException ie) {
+				ie.printStackTrace();
+				
+				break;
+			} catch (IOException ioe) {
+				onException(ioe);
+			}
+		}
+	}
+	
+	public Node(Snmp snmp, String ip, int udp, OctetString user, int level, int timeout) throws IOException {
+		this(snmp, ip, timeout);
 		
 		pdu = new ScopedPDU();
 		pdu.setType(PDU.GETNEXT);
@@ -92,8 +150,8 @@ public abstract class Node implements ResponseListener {
 		target.setTimeout(timeout);
 	}
 	
-	public Node(Snmp snmp, String ip, int udp, OctetString community, long timeout) throws IOException {
-		this(snmp);
+	public Node(Snmp snmp, String ip, int udp, OctetString community, int timeout) throws IOException {
+		this(snmp, ip, timeout);
 		
 		pdu = new PDU();
 		pdu.setType(PDU.GETNEXT);
@@ -107,8 +165,8 @@ public abstract class Node implements ResponseListener {
 		try {
 			target = new CommunityTarget(new UdpAddress(InetAddress.getByName(ip), udp), community);
 		}
-		catch (IOException nhe) {
-			throw nhe;
+		catch (IOException ioe) {
+			throw ioe;
 		}
 		
 		target.setVersion(SnmpConstants.version2c);
@@ -146,7 +204,9 @@ public abstract class Node implements ResponseListener {
 		
 		this.pdu.setRequestID(new Integer32(0));
 		
-		sendRequest(this.pdu);
+		this.processing = false;
+		
+		this.bq.add(this.pdu);
 	}
 	
 	public long getFailureRate() {		
@@ -167,11 +227,6 @@ public abstract class Node implements ResponseListener {
 		return this.data;
 	}
 	
-	private final void sendRequest(PDU pdu) throws IOException {
-		this.snmp.send(pdu, this.target, null, this);
-		//this.onResponse(this.snmp.send(pdu, this.target));
-	}
-	
 	private final boolean parseSystem(OID response, Variable variable, OID request) {
 		if (request.startsWith(RequestOID.sysDescr) && response.startsWith(RequestOID.sysDescr)) {
 			this.data.put("sysDescr", new String(((OctetString)variable).getValue()));
@@ -180,7 +235,7 @@ public abstract class Node implements ResponseListener {
 			this.data.put("sysObjectID", ((OID)variable).toDottedString());
 			
 			if (this.enterprise == null) {
-				this.enterprise = ((OID)variable).get(6);
+				this.enterprise = ((OID)variable).size() > 6? ((OID)variable).get(6): -1;
 				
 				setEnterprise(this.enterprise);
 			}
@@ -508,7 +563,7 @@ public abstract class Node implements ResponseListener {
 				if (parseResponse(responseVB.getOid(), value, requestVB.getOid())) {
 					nextRequests.add(responseVB);
 				}
-			} catch(Exception e) { // e: ClassCastException, JSONException
+			} catch(ClassCastException | JSONException e) { 
 				Agent.log.sysLog(e.getMessage());
 			}
 		}
@@ -521,23 +576,17 @@ public abstract class Node implements ResponseListener {
 	}
 		
 	public void parseResponse(ResponseEvent event) throws IOException {
-		PDU request = event.getRequest();
 		PDU response = event.getResponse();
-		if (this.target.getAddress().toString().indexOf("121.187.216.238") > -1) {
-			System.out.println(event.getResponse());
-		}
-		this.snmp.cancel(request, this);
 		
 		if (response == null || (Snmp)event.getSource() instanceof Snmp.ReportHandler) {
 			this.failureCount = Math.min(MAX_REQUEST, this.failureCount +1);
-			if (this.target.getAddress().toString().indexOf("121.187.216.238") > -1) {
-				System.out.println("fail "+ this.failureCount + " " + response);
-			}
-			onFailure();
+			
+			onResponse(false);
 			
 			return;
 		}
 		
+		PDU request = event.getRequest();
 		int status = response.getErrorStatus();
 		
 		if (status != PDU.noError) {
@@ -550,40 +599,27 @@ public abstract class Node implements ResponseListener {
 			return;
 		}
 		
-		PDU nextRequest = getNextRequest(request, response);
-		
-		if (nextRequest == null) {
+		if (getNextRequest(request, response) == null) {
 			this.lastResponse = Calendar.getInstance().getTimeInMillis();
 			this.data.put("lastResponse", this.lastResponse);
 			
 			this.failureCount = Math.max(0, this.failureCount -1);
-			if (this.target.getAddress().toString().indexOf("121.187.216.238") > -1) {
-				System.out.println("success "+ this.failureCount);
-			}
+			
 			this.isInitialized = true;
 			
-			onSuccess();
+			onResponse(true);
 			
 			this.data.put("hrProcessorEntry", this.hrProcessorEntry);
 			this.data.put("hrStorageEntry", this.hrStorageEntry);
 			this.data.put("ifEntry", this.ifEntry);
 		}
 		else {
-			sendRequest(nextRequest);
+			this.bq.add(this.nextPDU);
 		}
 	}
 	
-	@Override
-	public void onResponse(ResponseEvent event) {
-		try {
-			parseResponse(event);
-		} catch (IOException ioe) {
-			onException(ioe);
-		}
-	}
-	
-	abstract protected void onSuccess();
-	abstract protected void onFailure();
+	abstract protected void onICMPResponse(long mills);
+	abstract protected void onResponse(boolean success);
 	abstract protected void onException(Exception e);
 	
 	abstract protected boolean parseEnterprise(OID response, Variable variable, OID request);

@@ -1,9 +1,7 @@
 package com.itahm.gcm;
 import java.net.URL;
-import java.util.LinkedList;
-
-import com.itahm.Agent;
-import com.itahm.util.Util;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -18,7 +16,8 @@ public abstract class DownStream implements Runnable, Closeable {
 	private final String host;
 	private final URL url;
 	private final String auth;
-	private final LinkedList<Request> queue;
+	//private final LinkedList<Request> queue;
+	private final BlockingQueue<Request> bq = new LinkedBlockingQueue<>();
 	
 	interface Request {
 		public void send() throws IOException;
@@ -28,7 +27,7 @@ public abstract class DownStream implements Runnable, Closeable {
 		this.host = host;
 		url = new URL(GCMURL);
 		
-		queue = new LinkedList<>();
+		//queue = new LinkedList<>();
 		
 		auth = "key="+ apiKey;
 		
@@ -54,9 +53,7 @@ public abstract class DownStream implements Runnable, Closeable {
 	}
 	
 	public void send(String to, String title, String body) throws IOException {
-		synchronized(this.queue) {
-			this.queue.add(new Message(this, to, title, body, this.host));
-		}
+		this.bq.add(new Message(this, to, title, body, this.host));
 	}
 	
 	@Override
@@ -71,28 +68,15 @@ public abstract class DownStream implements Runnable, Closeable {
 	
 	@Override
 	public void run() {
-		Request request;
-	
 		onStart();
 		
 		while (!Thread.interrupted()) {
-			synchronized(this.queue) {
-				request = this.queue.poll();
-			}
-			
-			if (request == null) {
-				try {
-					Thread.sleep(1000);
-				} catch (InterruptedException ie) {
-					break;
-				}
-			}
-			else {
-				try {
-					request.send();
-				} catch (IOException ioe) {
-					Agent.log(Util.EToString(ioe));
-				}
+			try {
+				this.bq.take().send();
+			} catch (IOException e) {
+				e.printStackTrace();
+			} catch (InterruptedException e) {
+				break;
 			}
 		}
 		
@@ -100,7 +84,7 @@ public abstract class DownStream implements Runnable, Closeable {
 	}
 	
 	public static void main(String[] args) throws IOException {
-		final DownStream ds = new DownStream(Agent.API_KEY, "아이탐") {
+		final DownStream ds = new DownStream("API_KEY", "아이탐") {
 
 			@Override
 			public void onUnRegister(String token) {
