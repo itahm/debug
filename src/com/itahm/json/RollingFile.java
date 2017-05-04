@@ -14,8 +14,6 @@ import com.itahm.json.JSONObject;
 public class RollingFile implements Closeable {
 	
 	/** The lastHour. */
-	//private int lastHour;
-	//private int lastDay;
 	private long lastHour = -1;
 	private long lastDay = -1;
 	
@@ -122,9 +120,6 @@ public class RollingFile implements Closeable {
 		this.hourCnt++;
 		
 		summarize();
-		
-		// TODO 아래 반복되는 save가 성능에 영향을 주는가 확인 필요함.
-		this.hourFile.save();
 	}
 	
 	private void initDay(long dayMills) throws IOException {
@@ -135,6 +130,7 @@ public class RollingFile implements Closeable {
 		this.dayDirectory.mkdir();
 		
 		if (this.summaryFile != null) {
+			this.summaryFile.save();
 			this.summaryFile.close();
 		}
 		
@@ -154,7 +150,10 @@ public class RollingFile implements Closeable {
 		this.lastHour = hourMills;
 		
 		if (this.hourFile != null) {
+			this.hourFile.save();
 			this.hourFile.close();
+			
+			this.summaryFile.save();
 		}
 		
 		// hourly file 생성
@@ -182,8 +181,6 @@ public class RollingFile implements Closeable {
 			.put("avg", avg)
 			.put("max", Math.max(avg, this.max))
 			.put("min", Math.min(avg, this.min));
-		
-		this.summaryFile.save();
 	}
 	
 	public JSONObject getData(long start, long end, boolean summary) throws IOException {
