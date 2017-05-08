@@ -1,41 +1,34 @@
 package com.itahm.util;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
+import java.io.OutputStreamWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Calendar;
 
 public class DailyFile {
 
 	private final File root;
+	private File file;
+	private final boolean append;
 	private int day = 0;
-	private RandomAccessFile file = null;
-	private FileChannel channel = null;
 	
-	public DailyFile() throws IOException {
-		this(new File("."));
-	}
-	
-	public DailyFile(File root) throws IOException {
+	public DailyFile(File root, boolean append) throws IOException {
 		this.root = root;
+		this.append = append;
 	}
 	
 	public boolean roll() throws IOException {
-		Calendar calendar = Calendar.getInstance();
-		int day = calendar.get(Calendar.DAY_OF_YEAR);
+		Calendar c = Calendar.getInstance();
+		int day = c.get(Calendar.DAY_OF_YEAR);
 		boolean roll = false;
 		
 		if (this.day != day) {
-			close();
+			trim(c);
 			
-			trim(calendar);
-			
-			this.file = new RandomAccessFile(new File(this.root, Long.toString(calendar.getTimeInMillis())), "rw");
-			this.channel = this.file.getChannel();
-			
-			this.file.seek(this.file.length());
+			file = new File(this.root, Long.toString(c.getTimeInMillis()));
 			
 			if (this.day != 0) {
 				roll = true;
@@ -48,31 +41,18 @@ public class DailyFile {
 	}
 	
 	public byte [] read(long mills) throws IOException {
-		File file = new File(this.root, Long.toString(mills));
+		File f = new File(this.root, Long.toString(mills));
 		
-		if (file.isFile()) {
-			return read(file);
+		if (f.isFile()) {
+			return Files.readAllBytes(f.toPath());
 		}
 		
 		return null;
 	}
 	
 	public void write(byte [] data) throws IOException {
-		this.file.setLength(0);
-		this.channel.write(ByteBuffer.wrap(data));
-	}
-	
-	public void append(byte [] data) throws IOException {
-		this.channel.write(ByteBuffer.wrap(data));
-	}
-	
-	public void close() throws IOException {
-		if (this.file != null) {
-			if (this.channel != null) {
-				this.channel.close();
-			}
-			
-			this.file.close();
+		try(OutputStreamWriter osw = new OutputStreamWriter(new FileOutputStream(this.file, this.append), StandardCharsets.UTF_8.name())) {
+			osw.write(new String(data));
 		}
 	}
 	
@@ -83,35 +63,6 @@ public class DailyFile {
 		c.set(Calendar.MILLISECOND, 0);
 		
 		return c;
-	}
-	
-	private byte [] read(File file) throws IOException {
-		try (RandomAccessFile raf = new RandomAccessFile(file, "r")) {
-			try (FileChannel fc = raf.getChannel()) {
-				int size = (int)fc.size();
-				byte[] bytes = new byte [size];
-				ByteBuffer bb = ByteBuffer.allocate(size);
-		
-				while ((size -= fc.read(bb)) > 0);
-				
-				bb.flip();
-				
-				bb.get(bytes);
-				
-				return bytes;
-			}
-		}
-	}
-
-	public static void main(String[] args) throws IOException {
-		DailyFile df = new DailyFile();
-		String s = "테스트";
-		
-		df.roll();
-		
-		df.write(s.getBytes(java.nio.charset.StandardCharsets.UTF_8.name()));
-		
-		df.close();
 	}
 	
 }

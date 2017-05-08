@@ -53,7 +53,7 @@ public class Agent implements ITAhMAgent {
 	private boolean isClosed = true;
 	
 	public Agent() {
-		System.out.format("ITAhM Agent version %s ready.\n", VERSION);
+		System.out.format("ITAhM Agent version %s (debug only) ready.\n", VERSION);
 	}
 	
 	public boolean start(File dataRoot) {
@@ -255,20 +255,8 @@ public class Agent implements ITAhMAgent {
 			icmp.close();
 		}
 		
-		if (log != null) {
-			log.close();
-		}
-		
 		if (gcmm != null) {
 			gcmm.close();
-		}
-		
-		for (Table table : tableMap.values()) {
-			try {
-				table.close();
-			} catch (IOException e) {
-				e.printStackTrace();
-			}
 		}
 		
 		System.out.println("ITAhM agent down.");

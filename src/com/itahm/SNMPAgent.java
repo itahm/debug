@@ -335,7 +335,7 @@ public class SNMPAgent extends Snmp implements Closeable {
 			ip = (String)key;
 			
 			monitor = monitorData.getJSONObject(ip);
-			
+		
 			if ("snmp".equals(monitor.getString("protocol"))) {
 				addNode(ip, monitor.getString("profile"));
 			}
@@ -726,7 +726,6 @@ public class SNMPAgent extends Snmp implements Closeable {
 			return;
 		}
 		
-		//String community = new String(ba);
 		Vector<? extends VariableBinding> vbs = pdu.getVariableBindings();
 		VariableBinding vb;
 		

@@ -1,83 +1,32 @@
 package com.itahm.json;
 
-import java.io.Closeable;
 import java.io.File;
-import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
+import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 
 /**
  * The Class JSONFile.
  */
-public class JSONFile implements Closeable{
+public class JSONFile {
 	
+	private final File file;
 	protected JSONObject json;
-	private final RandomAccessFile file;
-	private FileChannel channel;
 	
-	public JSONFile(File f) throws IOException {
-		file = new RandomAccessFile(f, "rws");
-		channel = file.getChannel();
+	public JSONFile(File file) throws IOException {
+		this.file = file;
 		
-		try {
-			json = getJSONObject(this.channel);
+		if (file.isFile()) {
+			json = new JSONObject(new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));
+		}
+		else {
+			json = new JSONObject();
 			
-			if (json == null) {
-				json = new JSONObject();
-				
-				save();
-			}
-		} catch (IOException ioe) {
-			file.close();
-			
-			throw ioe;
+			save();
 		}
-	}
-	
-	public static JSONObject getJSONObject(FileChannel fc) throws IOException {
-		long size = fc.size();
-		
-		if (size != (int)size) {
-			throw new IOException("file size " +size);
-		}
-		
-		if (size <= 0) {
-			return null;
-		}
-		
-		ByteBuffer buffer = ByteBuffer.allocate((int)size);
-		
-		while (size > 0) {
-			size -= fc.read(buffer);
-		}
-		
-		buffer.flip();
-		
-		try {
-			return new JSONObject(StandardCharsets.UTF_8.decode(buffer).toString());
-		}
-		catch (JSONException jsone) {
-			throw new IOException(jsone);
-		}
-	}
-	
-	public static JSONObject getJSONObject(File file) throws IOException {
-		if (!file.isFile()) {
-			return null;
-		}
-		
-		try (
-			RandomAccessFile raf = new RandomAccessFile(file, "r");
-		) {
-			return getJSONObject(raf.getChannel());
-		}
-		catch (FileNotFoundException fnfe) {
-		}
-		
-		return null;
 	}
 	
 	public JSONObject getJSONObject() {
@@ -88,11 +37,10 @@ public class JSONFile implements Closeable{
 		return this.json.has(key)? this.json.get(key): null;
 	}
 	
-	public void save() throws IOException {	
-		ByteBuffer buffer = ByteBuffer.wrap(this.json.toString().getBytes(StandardCharsets.UTF_8.name()));
-		
-		this.file.setLength(0);
-		this.channel.write(buffer);
+	public void save() throws IOException {
+		try (OutputStreamWriter osw = new OutputStreamWriter(new FileOutputStream(this.file), StandardCharsets.UTF_8.name())) {
+			osw.write(this.json.toString());
+		}
 	}
 	
 	public void save(JSONObject json) throws IOException {	
@@ -101,18 +49,22 @@ public class JSONFile implements Closeable{
 		save();
 	}
 	
-	public static void save(File f, JSONObject json) throws IOException {
-		try (
-			RandomAccessFile raf = new RandomAccessFile(f, "rw");
-		) {
-			raf.setLength(0);
-			raf.getChannel().write(ByteBuffer.wrap(json.toString().getBytes(StandardCharsets.UTF_8.name())));
+	public static JSONObject getJSONObject(File file) throws IOException {
+		try {
+			return new JSONObject(new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));
+		}
+		catch (JSONException jsone) {
+			throw new IOException(jsone);
+		}
+		catch (NoSuchFileException nsfe) {
+			return null;
 		}
 	}
 	
-	@Override
-	public void close() throws IOException {
-		this.file.close();
+	public static void save(File file, JSONObject json) throws IOException {
+		try(OutputStreamWriter osw = new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8.name())) {
+			osw.write(json.toString());
+		}
 	}
 	
 }

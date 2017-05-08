@@ -1,11 +1,9 @@
 package com.itahm;
 
-import java.io.Closeable;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
+import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.Calendar;
 import java.util.HashSet;
@@ -19,7 +17,7 @@ import com.itahm.http.Response;
 import com.itahm.util.DailyFile;
 import com.itahm.util.Util;
 
-public class Log implements Closeable {
+public class Log {
 
 	public final static String SHUTDOWN = "shutdown";
 	public final static String CRITICAL = "critical";
@@ -28,37 +26,29 @@ public class Log implements Closeable {
 	private final Set<Request> waiter = new HashSet<Request> ();
 	
 	private DailyFile dailyFile;
-	private RandomAccessFile indexFile;
 	private DailyFile sysLog;
 	private JSONObject indexObject;
-	private FileChannel indexChannel;
 	private long index;
+	private final File indexFile;
 	private final JSONObject log;
 	
 	public Log(File root) throws IOException {
 		File logRoot = new File(root, "log");
-		File indexFile = new File(logRoot, "index");
 		File systemRoot = new File(logRoot, "system");
 		long mills = DailyFile.trim(Calendar.getInstance()).getTimeInMillis();
 		
 		logRoot.mkdir();
 		systemRoot.mkdir();
 		
-		dailyFile = new DailyFile(logRoot);
-		sysLog = new DailyFile(systemRoot);
+		indexFile = new File(logRoot, "index");
+		dailyFile = new DailyFile(logRoot, false);
+		sysLog = new DailyFile(systemRoot, true);
 		
 		byte [] bytes = dailyFile.read(mills);
 		
 		this.log = bytes == null? new JSONObject(): new JSONObject(new String(bytes, StandardCharsets.UTF_8.name()));
 		
-		this.indexFile = new RandomAccessFile(indexFile, "rws");
-		this.indexChannel = this.indexFile.getChannel();
-		
-		loadIndex();
-	}
-	
-	private void loadIndex() throws IOException {
-		JSONObject jsono = JSONFile.getJSONObject(this.indexChannel);
+		JSONObject jsono = JSONFile.getJSONObject(indexFile);
 		
 		if (jsono == null) {
 			this.indexObject = new JSONObject();
@@ -70,6 +60,14 @@ public class Log implements Closeable {
 			
 			this.index = this.indexObject.getLong("index");
 		}
+		
+		save();
+	}
+	
+	private void save() throws IOException {
+		try (OutputStreamWriter osw = new OutputStreamWriter(new FileOutputStream(this.indexFile), StandardCharsets.UTF_8.name())) {
+			osw.write(this.indexObject.toString());
+		}
 	}
 	
 	private synchronized long getIndex() throws IOException {
@@ -77,9 +75,7 @@ public class Log implements Closeable {
 		
 		this.indexObject.put("index", this.index);
 		
-		this.indexFile.setLength(0);
-		
-		this.indexChannel.write(ByteBuffer.wrap(this.indexObject.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8.name())));
+		save();
 		
 		return index;
 	}
@@ -159,7 +155,7 @@ public class Log implements Closeable {
 		try {
 			this.sysLog.roll();
 			
-			this.sysLog.append((log + System.lineSeparator()).toString().getBytes(java.nio.charset.StandardCharsets.UTF_8.name()));
+			this.sysLog.write((log + System.lineSeparator()).toString().getBytes(java.nio.charset.StandardCharsets.UTF_8.name()));
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -210,33 +206,6 @@ public class Log implements Closeable {
 	public void cancel(Request request) {
 		synchronized(this.waiter) {
 			this.waiter.remove(request);
-		}
-	}
-	
-	@Override
-	public void close() {
-		try {
-			this.dailyFile.close();
-		} catch (IOException ioe) {
-			sysLog(Util.EToString(ioe));
-		}
-		
-		try {
-			this.indexChannel.close();
-		} catch (IOException ioe) {
-			sysLog(Util.EToString(ioe));
-		}
-		
-		try {
-			this.sysLog.close();
-		} catch (IOException ioe) {
-			sysLog(Util.EToString(ioe));
-		}
-		
-		try {
-			this.indexFile.close();
-		} catch (IOException ioe) {
-			sysLog(Util.EToString(ioe));
 		}
 	}
 	

@@ -2,12 +2,11 @@ package com.itahm.http;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -111,28 +110,10 @@ public class Response {
 	 * @throws IOException
 	 */
 	public static Response getInstance(File url) throws IOException {
-		try (RandomAccessFile raf = new RandomAccessFile(url, "r")) {
-			FileChannel fc = raf.getChannel();
-			long size = fc.size();
-			
-			if (size != (int)size) {
-				throw new IOException("file size " +size);
-			}
-			
-			ByteBuffer bb = ByteBuffer.allocate((int)size);
-			
-			while (size > 0) {
-				size -= fc.read(bb);
-			}
-			
-			bb.flip();
-			
-			byte [] body = new byte [bb.remaining()];
-			
-			bb.get(body);
-			
-			return new Response(Status.OK, body).setResponseHeader("Content-type", Files.probeContentType(url.toPath()));
-		}
+		Path path = url.toPath();
+		
+		return new Response(Status.OK, Files.readAllBytes(path))
+			.setResponseHeader("Content-type", Files.probeContentType(path));
 	}
 	
 	public Response setResponseHeader(String name, String value) {
@@ -140,17 +121,7 @@ public class Response {
 		
 		return this;
 	}
-	/*
-	public Response setResponseBody(String body) {
-		try {
-			this.body = body.getBytes(StandardCharsets.UTF_8.name());
-		} catch (UnsupportedEncodingException e) {
-			this.body = new byte[0];
-		}
-		
-		return this;
-	}
-	*/
+	
 	public ByteBuffer build() throws IOException {
 		if (this.startLine == null || this.body == null) {
 			throw new IOException("malformed http request!");

@@ -1,6 +1,5 @@
 package com.itahm.table;
 
-import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 
@@ -8,7 +7,7 @@ import com.itahm.json.JSONObject;
 
 import com.itahm.json.JSONFile;
 
-public class Table implements Closeable {
+public class Table {
 	public final static String ACCOUNT = "account";
 	public final static String CRITICAL = "critical";
 	public final static String DEVICE = "device";
@@ -66,8 +65,4 @@ public class Table implements Closeable {
 		return this.table;
 	}
 	
-	@Override
-	public void close() throws IOException {
-		this.file.close();
-	}
 }

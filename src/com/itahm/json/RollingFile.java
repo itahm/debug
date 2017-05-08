@@ -1,6 +1,5 @@
 package com.itahm.json;
 
-import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.math.BigInteger;
@@ -11,7 +10,7 @@ import com.itahm.json.JSONObject;
 /**
  * The Class RollingFile.
  */
-public class RollingFile implements Closeable {
+public class RollingFile {
 	
 	/** The lastHour. */
 	private long lastHour = -1;
@@ -120,6 +119,8 @@ public class RollingFile implements Closeable {
 		this.hourCnt++;
 		
 		summarize();
+		
+		this.hourFile.save();
 	}
 	
 	private void initDay(long dayMills) throws IOException {
@@ -131,7 +132,6 @@ public class RollingFile implements Closeable {
 		
 		if (this.summaryFile != null) {
 			this.summaryFile.save();
-			this.summaryFile.close();
 		}
 		
 		// summary file 생성
@@ -151,7 +151,6 @@ public class RollingFile implements Closeable {
 		
 		if (this.hourFile != null) {
 			this.hourFile.save();
-			this.hourFile.close();
 			
 			this.summaryFile.save();
 		}
@@ -181,21 +180,13 @@ public class RollingFile implements Closeable {
 			.put("avg", avg)
 			.put("max", Math.max(avg, this.max))
 			.put("min", Math.min(avg, this.min));
+		
+		this.summaryFile.save();
 	}
 	
 	public JSONObject getData(long start, long end, boolean summary) throws IOException {
 		return (summary? this.summary: this.data).getJSON(start, end);
 	}
 	
-	@Override
-	public void close() throws IOException {
-		if (this.hourFile != null) {
-			this.hourFile.close();
-		}
-		
-		if (this.summaryFile != null) {
-			this.summaryFile.close();
-		}
-	}
 }
 
