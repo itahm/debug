@@ -98,6 +98,8 @@ public class RollingFile {
 			this.minuteSum = this.minuteSum.add(BigInteger.valueOf(value));
 		}
 		else {
+			Util.putJSONtoFile(this.hourFile, this.hourData);
+			
 			this.minuteSum = BigInteger.valueOf(value);
 			this.minuteSumCnt = 0;
 		}
@@ -120,8 +122,6 @@ public class RollingFile {
 		this.hourCnt++;
 		
 		summarize();
-		
-		Util.putJSONtoFile(this.hourFile, this.hourData);
 	}
 	
 	private void initDay(long dayMills) throws IOException {
@@ -175,6 +175,8 @@ public class RollingFile {
 			summary = this.summaryData.getJSONObject(this.summaryHour);
 		}
 		else {
+			Util.putJSONtoFile(this.summaryFile, this.summaryData);
+			
 			summary = new JSONObject();
 			
 			this.summaryData.put(this.summaryHour, summary);
@@ -186,8 +188,6 @@ public class RollingFile {
 			.put("avg", avg)
 			.put("max", Math.max(avg, this.max))
 			.put("min", Math.min(avg, this.min));
-		
-		Util.putJSONtoFile(this.summaryFile, this.summaryData);
 	}
 	
 	public JSONObject getData(long start, long end, boolean summary) throws IOException {

@@ -41,7 +41,7 @@ public class LogFile extends DailyFile {
 		return null;
 	}
 	
-	public void write(JSONObject log) throws IOException {
+	public synchronized void write(JSONObject log) throws IOException {
 		String index = Long.toString(this.index++ & 0xffffffffL);
 		
 		log.put("index", index);

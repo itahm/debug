@@ -4,7 +4,6 @@ import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.net.URL;
@@ -74,8 +73,8 @@ public class Util {
 	}
 	
 	public static JSONObject putJSONtoFile(File file, JSONObject json) throws IOException {
-		try(OutputStreamWriter osw = new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8.name())) {
-			osw.write(json.toString());
+		try (FileOutputStream fos = new FileOutputStream(file)) {
+			fos.write(json.toString().getBytes(StandardCharsets.UTF_8));
 		}
 		
 		return json;
