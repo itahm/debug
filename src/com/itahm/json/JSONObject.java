@@ -1413,7 +1413,7 @@ public class JSONObject {
     public String toString() {
         try {
             return this.toString(0);
-        } catch (Exception e) {
+        } catch (Exception e) {e.printStackTrace();
             return null;
         }
     }

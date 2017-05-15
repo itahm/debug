@@ -1,20 +1,15 @@
 package com.itahm;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.Calendar;
 import java.util.HashSet;
 import java.util.Set;
 
-import com.itahm.json.JSONFile;
 import com.itahm.json.JSONObject;
-
 import com.itahm.http.Request;
 import com.itahm.http.Response;
-import com.itahm.util.DailyFile;
 import com.itahm.util.Util;
 
 public class Log {
@@ -25,59 +20,18 @@ public class Log {
 	
 	private final Set<Request> waiter = new HashSet<Request> ();
 	
-	private DailyFile dailyFile;
-	private DailyFile sysLog;
-	private JSONObject indexObject;
-	private long index;
-	private final File indexFile;
-	private final JSONObject log;
+	private LogFile dailyFile;
+	private SysLogFile sysLog;
 	
 	public Log(File root) throws IOException {
 		File logRoot = new File(root, "log");
 		File systemRoot = new File(logRoot, "system");
-		long mills = DailyFile.trim(Calendar.getInstance()).getTimeInMillis();
 		
 		logRoot.mkdir();
 		systemRoot.mkdir();
 		
-		indexFile = new File(logRoot, "index");
-		dailyFile = new DailyFile(logRoot, false);
-		sysLog = new DailyFile(systemRoot, true);
-		
-		byte [] bytes = dailyFile.read(mills);
-		
-		this.log = bytes == null? new JSONObject(): new JSONObject(new String(bytes, StandardCharsets.UTF_8.name()));
-		
-		JSONObject jsono = JSONFile.getJSONObject(indexFile);
-		
-		if (jsono == null) {
-			this.indexObject = new JSONObject();
-			
-			this.indexObject.put("index", this.index = 0);
-		}
-		else {
-			this.indexObject = jsono;
-			
-			this.index = this.indexObject.getLong("index");
-		}
-		
-		save();
-	}
-	
-	private void save() throws IOException {
-		try (OutputStreamWriter osw = new OutputStreamWriter(new FileOutputStream(this.indexFile), StandardCharsets.UTF_8.name())) {
-			osw.write(this.indexObject.toString());
-		}
-	}
-	
-	private synchronized long getIndex() throws IOException {
-		long index = this.index++;
-		
-		this.indexObject.put("index", this.index);
-		
-		save();
-		
-		return index;
+		dailyFile = new LogFile(logRoot);
+		sysLog = new SysLogFile(systemRoot);
 	}
 	
 	public String getSysLog(long mills) throws IOException {
@@ -92,52 +46,26 @@ public class Log {
 	
 	public void write(String ip, String message, String type, boolean status, boolean broadcast) {
 		JSONObject logData = new JSONObject();
-		long index;
-		
-		try {
-			index = getIndex();
-		} catch (IOException ioe) {
-			Agent.log(Util.EToString(ioe));
-			
-			return;
-		}
 		
 		logData
-			.put("index", index)
 			.put("ip", ip)
 			.put("type", type)
 			.put("status", status)
 			.put("message", message)
 			.put("date", Calendar.getInstance().getTimeInMillis());
-		
+			
 		try {
-			if (this.dailyFile.roll()) {
-				this.log.clear();
-			}
+			this.dailyFile.write(logData);
 		} catch (IOException ioe) {
 			sysLog(Util.EToString(ioe));
-		}
-		
-		this.log.put(Long.toString(index), logData);
-		
-		try {
-			byte [] ba = this.log.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8.name());
-			this.dailyFile.write(ba);
-		} catch (IOException ioe) {
-			sysLog(Util.EToString(ioe));
-		} catch (NullPointerException npe) {
-			sysLog(Util.EToString(npe));
 		}
 		
 		synchronized(this.waiter) {
-			Response response;
+			Response response = Response.getInstance(Response.Status.OK, logData.toString());
 			
 			for (Request request : this.waiter) {
 				try {
-					
-					response = Response.getInstance(Response.Status.OK, logData.toString());
-					
-					ITAhM.sendRequest(request, response);
+					ITAhM.sendResponse(request, response);
 				} catch (IOException ioe) {
 					sysLog(Util.EToString(ioe));
 				}
@@ -153,9 +81,7 @@ public class Log {
 	
 	public void sysLog(String log) {
 		try {
-			this.sysLog.roll();
-			
-			this.sysLog.write((log + System.lineSeparator()).toString().getBytes(java.nio.charset.StandardCharsets.UTF_8.name()));
+			this.sysLog.write((log + System.lineSeparator()).toString().getBytes(StandardCharsets.UTF_8));
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
@@ -171,16 +97,6 @@ public class Log {
 		return new JSONObject().toString();
 	}
 	
-	public JSONObject getDailyLog(long index) {
-		String key = Long.toString(index);
-		
-		if (this.log.has(key)) {
-			return this.log.getJSONObject(key);
-		}
-		
-		return null;
-	}
-	
 	/**
 	 * waiter가 원하는 이벤트 있으면 돌려주고 없으면 waiter 큐에 추가  
 	 * @param waiter
@@ -188,18 +104,19 @@ public class Log {
 	 */
 	public void listen(Request request, long l) throws IOException {
 		String index = Long.toString(l);
+		JSONObject log = this.dailyFile.getLog(index);
 		
-		synchronized(this.log) {
-			if (this.log.has(index)) {
-				request.sendResponse(Response.getInstance(Response.Status.OK, this.log.getJSONObject(index).toString()));
-			}
-			else {
+		if (log == null) {
+			synchronized(this.waiter) {
 				this.waiter.add(request);
 			}
 		}
+		else {
+			ITAhM.sendResponse(request, Response.getInstance(Response.Status.OK, log.toString()));
+		}
 	}
 	
-	public int getWaiterCount() {
+	public int _getWaiterCount() {
 		return this.waiter.size();
 	}
 	

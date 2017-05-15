@@ -19,7 +19,6 @@ import com.itahm.enterprise.Extension;
 import com.itahm.http.Request;
 import com.itahm.http.Response;
 import com.itahm.json.JSONException;
-import com.itahm.json.JSONFile;
 import com.itahm.json.JSONObject;
 
 import org.snmp4j.CommandResponder;
@@ -416,13 +415,21 @@ public class SNMPAgent extends Snmp implements Closeable {
 			return data;
 		}
 		
-		try {
-			return JSONFile.getJSONObject(new File(new File(this.nodeRoot, ip), "node"));
-		} catch (IOException e) {
-			Agent.log("SNMPAgent "+ e.getMessage());
+		File f = new File(new File(this.nodeRoot, ip), "node");
+		
+		if (f.isFile()) {
+			try {
+				data = Util.getJSONFromFile(f);
+			} catch (IOException e) {
+				Agent.log("SNMPAgent "+ e.getMessage());
+			}
 		}
 		
-		return null;
+		if (data != null) {
+			data.put("failure", 100);
+		}
+		
+		return data;
 	}
 	
 	public JSONObject getNodeData(String ip, boolean offline) {
@@ -513,10 +520,40 @@ public class SNMPAgent extends Snmp implements Closeable {
 		return json;
 	}
 	
+	public void onResponse(String ip, boolean success) {
+		SNMPNode node = this.nodeList.get(ip);
+
+		if (node == null) {
+			return;
+		}
+		
+		if (success) {
+			try {
+				Util.putJSONtoFile(new File(new File(this.nodeRoot, ip), "node"), node.getData());
+			} catch (IOException ioe) {
+				Agent.log(Util.EToString(ioe));
+			}
+			
+			sendNextRequest(node);
+		}
+		else {
+			sendRequest(node);
+		}
+	}
+	
+	public void onTimeout(String ip, boolean timeout) {
+		if (timeout) {
+			onFailure(ip);
+		}
+		else {
+			onSuccess(ip);
+		}
+	}
+	
 	/**
 	 * ICMP 요청에 대한 응답
 	 */
-	public void onSuccess(String ip) {
+	private void onSuccess(String ip) {
 		SNMPNode node = this.nodeList.get(ip);
 		
 		// 그 사이 삭제되었으면
@@ -550,7 +587,7 @@ public class SNMPAgent extends Snmp implements Closeable {
 	/**
 	 * ICMP 요청에 대한 응답
 	 */
-	public void onFailure(String ip) {
+	private void onFailure(String ip) {
 		SNMPNode node = this.nodeList.get(ip);
 
 		if (node == null) {
@@ -579,38 +616,7 @@ public class SNMPAgent extends Snmp implements Closeable {
 				"shutdown", false, true);
 		}
 	}
-	
-	/**
-	 * snmp 요청에 대한 응답
-	 * @param ip
-	 */
-	public void onResponse(String ip) {
-		SNMPNode node = this.nodeList.get(ip);
-		
-		if (node != null) {
-			try {
-				File f = new File(new File(this.nodeRoot, ip), "node");
-				
-				JSONFile.save(f, node.getData());
-			} catch (IOException ioe) {
-				Agent.log(Util.EToString(ioe));
-			}
-			
-			sendNextRequest(node);
-		}
-	}
-	
-	/**
-	 * snmp 요청에 대한 응답
-	 * @param ip
-	 */
-	public void onTimeout(String ip) {
-		SNMPNode node = this.nodeList.get(ip);
 
-		if (node != null) {
-			sendRequest(node);
-		}
-	}
 	/**
 	 * snmp 요청에 대한 응답
 	 * @param ip

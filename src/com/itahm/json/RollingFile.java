@@ -6,6 +6,7 @@ import java.math.BigInteger;
 import java.util.Calendar;
 
 import com.itahm.json.JSONObject;
+import com.itahm.util.Util;
 
 /**
  * The Class RollingFile.
@@ -21,12 +22,12 @@ public class RollingFile {
 	private final JSONSummary summary;
 	private final JSONData data;
 	
-	private JSONFile summaryFile;
+	private File summaryFile;
 	private JSONObject summaryData;
 	private String summaryHour;
 	
 	private File dayDirectory;
-	private JSONFile hourFile;
+	private File hourFile;
 	private JSONObject hourData;
 	
 	private long max;
@@ -120,7 +121,7 @@ public class RollingFile {
 		
 		summarize();
 		
-		this.hourFile.save();
+		Util.putJSONtoFile(this.hourFile, this.hourData);
 	}
 	
 	private void initDay(long dayMills) throws IOException {
@@ -130,13 +131,16 @@ public class RollingFile {
 		this.dayDirectory = new File(this.root, Long.toString(dayMills));
 		this.dayDirectory.mkdir();
 		
-		if (this.summaryFile != null) {
-			this.summaryFile.save();
+		// summary file 생성
+		this.summaryFile = new File(this.dayDirectory, "summary");
+		if (this.summaryFile.isFile()) {
+			this.summaryData = Util.getJSONFromFile(this.summaryFile);
 		}
 		
-		// summary file 생성
-		this.summaryFile = new JSONFile(new File(this.dayDirectory, "summary"));
-		this.summaryData = this.summaryFile.getJSONObject();
+		// 최초 생성되거나, 파일이 깨졌을때
+		if (this.summaryData == null) {
+			Util.putJSONtoFile(this.summaryFile, this.summaryData = new JSONObject());
+		}
 	}
 	
 	/**
@@ -149,15 +153,17 @@ public class RollingFile {
 		
 		this.lastHour = hourMills;
 		
-		if (this.hourFile != null) {
-			this.hourFile.save();
-			
-			this.summaryFile.save();
+		// hourly file 생성
+		this.hourFile = new File(this.dayDirectory, hourString);
+		if (this.hourFile.isFile()) {
+			this.hourData = Util.getJSONFromFile(this.hourFile);
 		}
 		
-		// hourly file 생성
-		this.hourFile = new JSONFile(new File(this.dayDirectory, hourString));
-		this.hourData = this.hourFile.getJSONObject();
+		// 최초 생성되거나, 파일이 깨졌을때
+		if (this.hourData == null) {
+			Util.putJSONtoFile(this.hourFile, this.hourData = new JSONObject());
+		}
+		
 		this.summaryHour = hourString;
 		this.hourCnt = 0;
 	}
@@ -181,7 +187,7 @@ public class RollingFile {
 			.put("max", Math.max(avg, this.max))
 			.put("min", Math.min(avg, this.min));
 		
-		this.summaryFile.save();
+		Util.putJSONtoFile(this.summaryFile, this.summaryData);
 	}
 	
 	public JSONObject getData(long start, long end, boolean summary) throws IOException {

@@ -3,21 +3,19 @@ package com.itahm.util;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.Calendar;
 
 public class DailyFile {
 
 	private final File root;
-	private File file;
-	private final boolean append;
+	protected File file;
 	private int day = 0;
 	
-	public DailyFile(File root, boolean append) throws IOException {
+	public DailyFile(File root) throws IOException {
+		this.file = new File(root, Long.toString(Util.trimDate(Calendar.getInstance()).getTimeInMillis()));
+		
 		this.root = root;
-		this.append = append;
 	}
 	
 	public boolean roll() throws IOException {
@@ -26,7 +24,7 @@ public class DailyFile {
 		boolean roll = false;
 		
 		if (this.day != day) {
-			trim(c);
+			Util.trimDate(c);
 			
 			file = new File(this.root, Long.toString(c.getTimeInMillis()));
 			
@@ -40,29 +38,28 @@ public class DailyFile {
 		return roll;
 	}
 	
+	public byte [] read() throws IOException {
+		return Files.readAllBytes(this.file.toPath());
+	}
+	
 	public byte [] read(long mills) throws IOException {
 		File f = new File(this.root, Long.toString(mills));
 		
-		if (f.isFile()) {
-			return Files.readAllBytes(f.toPath());
+		if (!f.isFile()) {
+			return null;
 		}
 		
-		return null;
+		return Files.readAllBytes(f.toPath());
 	}
 	
 	public void write(byte [] data) throws IOException {
-		try(OutputStreamWriter osw = new OutputStreamWriter(new FileOutputStream(this.file, this.append), StandardCharsets.UTF_8.name())) {
-			osw.write(new String(data));
-		}
+		write(this.file, data);
 	}
 	
-	public static Calendar trim(Calendar c) {
-		c.set(Calendar.HOUR_OF_DAY, 0);
-		c.set(Calendar.MINUTE, 0);
-		c.set(Calendar.SECOND, 0);
-		c.set(Calendar.MILLISECOND, 0);
-		
-		return c;
+	public static void write(File file, byte [] data) throws IOException {
+		try(FileOutputStream fos = new FileOutputStream(file)) {
+			fos.write(data);
+		}
 	}
 	
 }

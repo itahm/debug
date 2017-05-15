@@ -4,10 +4,17 @@ import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.Calendar;
+
+import com.itahm.json.JSONException;
+import com.itahm.json.JSONObject;
 
 public class Util {
 
@@ -41,5 +48,37 @@ public class Util {
 		
 		return sw.toString();
 	}
+	
+	public static Calendar trimDate(Calendar c) {
+		c.set(Calendar.HOUR_OF_DAY, 0);
+		c.set(Calendar.MINUTE, 0);
+		c.set(Calendar.SECOND, 0);
+		c.set(Calendar.MILLISECOND, 0);
+		
+		return c;
+	}
 
+	/**
+	 * 
+	 * @param file
+	 * @return null if not json file
+	 * @throws IOException
+	 */
+	public static JSONObject getJSONFromFile(File file) throws IOException {
+		try {
+			return new JSONObject(new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));
+		}
+		catch (JSONException jsone) {
+			return null;
+		}
+	}
+	
+	public static JSONObject putJSONtoFile(File file, JSONObject json) throws IOException {
+		try(OutputStreamWriter osw = new OutputStreamWriter(new FileOutputStream(file), StandardCharsets.UTF_8.name())) {
+			osw.write(json.toString());
+		}
+		
+		return json;
+	}
+	
 }

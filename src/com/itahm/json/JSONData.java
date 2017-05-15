@@ -3,8 +3,8 @@ package com.itahm.json;
 import java.io.File;
 import java.io.IOException;
 
-import com.itahm.json.JSONException;
 import com.itahm.json.JSONObject;
+import com.itahm.util.Util;
 
 public class JSONData extends Data{
 
@@ -27,15 +27,12 @@ public class JSONData extends Data{
 			try {
 				Long.valueOf(f.getName());
 				
-				data = JSONFile.getJSONObject(f);
-				
-				try {
+				data = Util.getJSONFromFile(f);
+			
+				if (data != null) {
 					for (Object key : data.keySet()) {
 						super.put((String)key, data.getLong((String)key));
 					}
-				}
-				catch(JSONException jsone) {
-					throw new IOException(jsone.getMessage());
 				}
 			}
 			catch (NumberFormatException nfe) {} 

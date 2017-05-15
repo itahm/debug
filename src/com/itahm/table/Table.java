@@ -4,8 +4,7 @@ import java.io.File;
 import java.io.IOException;
 
 import com.itahm.json.JSONObject;
-
-import com.itahm.json.JSONFile;
+import com.itahm.util.Util;
 
 public class Table {
 	public final static String ACCOUNT = "account";
@@ -18,12 +17,36 @@ public class Table {
 	public final static String CONFIG = "config";
 	public final static String GCM = "gcm";
 	
-	protected JSONFile file;
 	protected JSONObject table;
+	private File file;
+	private File backup;
 	
-	public Table(File dataRoot, String tableName) throws IOException {
-		this.file = new JSONFile((new File(dataRoot, tableName)));
-		this.table = file.getJSONObject();
+	public Table(File dataRoot, String tableName) throws IOException {	
+		file = new File(dataRoot, tableName);
+		backup = new File(dataRoot, tableName +".backup");
+		
+		if (file.isFile()) {
+			table = Util.getJSONFromFile(file);
+		}
+		else {
+			table = new JSONObject();
+			
+			Util.putJSONtoFile(file, table);
+			Util.putJSONtoFile(backup, table);
+		}
+		
+		// file 깨졌을때 복구
+		if (table == null && backup.isFile()) {
+			table = Util.getJSONFromFile(backup);
+			
+			if (table != null) {
+				Util.putJSONtoFile(file, table);
+			}
+		}
+		
+		if (table == null) {
+			throw new IOException("Table ("+ tableName +") loading failure");
+		}
 	}
 	
 	protected boolean isEmpty() {
@@ -54,15 +77,15 @@ public class Table {
 	}
 	
 	public JSONObject save() throws IOException {
-		this.file.save();
+		Util.putJSONtoFile(this.file, this.table);
 		
-		return this.table;
+		return Util.putJSONtoFile(this.backup, this.table);
 	}
 
-	public JSONObject save(JSONObject data) throws IOException{
-		this.file.save(this.table = data);
+	public JSONObject save(JSONObject table) throws IOException{
+		this.table = table;
 		
-		return this.table;
+		return save();
 	}
 	
 }

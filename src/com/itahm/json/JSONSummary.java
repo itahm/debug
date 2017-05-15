@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 
 import com.itahm.json.JSONObject;
+import com.itahm.util.Util;
 
 public class JSONSummary extends Data {
 	
@@ -17,10 +18,12 @@ public class JSONSummary extends Data {
 		
 		if (file.isFile()) {
 			try {	
-				JSONObject data = JSONFile.getJSONObject(file);
+				JSONObject data = Util.getJSONFromFile(file);
 				
-				for (Object key : data.keySet()) {
-					super.put((String)key, data.getJSONObject((String)key));
+				if (data != null) {
+					for (Object key : data.keySet()) {
+						super.put((String)key, data.getJSONObject((String)key));
+					}
 				}
 			} catch (IOException e) {}
 		}

@@ -469,12 +469,9 @@ public class SNMPNode extends Node {
 			}
 			
 			this.lastRolling = super.lastResponse;
-			
-			this.agent.onResponse(this.ip);
 		}
-		else {
-			this.agent.onTimeout(this.ip);
-		}
+		
+		this.agent.onResponse(this.ip, success);
 		
 		this.agent.onSubmitTop(this.ip, SNMPAgent.Resource.FAILURERATE, getFailureRate());
 	}
@@ -494,13 +491,8 @@ public class SNMPNode extends Node {
 	}
 
 	@Override
-	protected void onICMPResponse(long mills) {
-		if (mills < 0) {
-			this.agent.onFailure(this.ip);
-		}
-		else {
-			this.agent.onSuccess(this.ip);
-		}
+	protected void onTimeout(boolean timeout) {
+		this.agent.onTimeout(this.ip, timeout);
 	}
 	
 }

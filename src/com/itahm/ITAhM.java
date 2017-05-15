@@ -61,7 +61,7 @@ public class ITAhM extends Listener {
 		this.agent.closeRequest(request);
 	}
 	
-	public static void sendRequest(Request request, Response response) throws IOException {
+	public static void sendResponse(Request request, Response response) throws IOException {
 		String origin = request.getRequestHeader(Request.Header.ORIGIN);
 		
 		if (origin == null) {
@@ -79,7 +79,7 @@ public class ITAhM extends Listener {
 		Response response = parseRequest(request);
 		
 		if (response != null) { /* listen인 경우 null*/
-			sendRequest(request, response);
+			sendResponse(request, response);
 		}
 	}
 	

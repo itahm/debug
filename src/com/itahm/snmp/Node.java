@@ -5,9 +5,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Calendar;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.Vector;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -39,20 +37,6 @@ import org.snmp4j.smi.VariableBinding;
 
 public abstract class Node extends Thread {
 	
-	interface Request {
-		public void send();
-	}
-	
-	class Ping implements Request {
-
-		@Override
-		public void send() {
-			// TODO Auto-generated method stub
-			
-		}
-		
-	}
-	
 	private final static int MAX_REQUEST = 100;
 	private final static int CISCO = 9;
 	private final static int DASAN = 6296;
@@ -66,7 +50,6 @@ public abstract class Node extends Thread {
 	private Integer enterprise;
 	private long failureCount = 0;
 	private boolean isInitialized = false;
-	private final Set<Integer> error = new HashSet<>();
 	private final BlockingQueue<PDU> bq = new LinkedBlockingQueue<>();
 	private final int timeout;
 	private boolean processing = false;
@@ -107,16 +90,19 @@ public abstract class Node extends Thread {
 		while (!Thread.interrupted()) {
 			try {
 				pdu = this.bq.take();
-		
+				
 				if (!this.processing) {
 					this.processing = true;
 					
 					sent = Calendar.getInstance().getTimeInMillis();
 					
 					if (!this.ip.isReachable(timeout)) {
+						onTimeout(true);
 						
 						continue;
 					}
+					
+					onTimeout(false);
 					
 					data.put("responseTime", this.responseTime = Calendar.getInstance().getTimeInMillis() - sent);
 				}
@@ -190,7 +176,7 @@ public abstract class Node extends Thread {
 		}
 	}
 	
-	public void request() throws IOException {		
+	public void request() throws IOException {
 		// 존재하지 않는 index 지워주기 위해 초기화
 		hrProcessorEntry.clear();
 		hrStorageEntry.clear();
@@ -217,7 +203,7 @@ public abstract class Node extends Thread {
 		this.failureCount = 0;
 	}
 
-	public JSONObject getData() {		
+	public JSONObject getData() {
 		if (!this.isInitialized) {
 			return null;
 		}
@@ -543,7 +529,7 @@ public abstract class Node extends Thread {
 		return false;
 	}
 	
-	public final PDU getNextRequest(PDU request, PDU response) throws IOException {
+	public final boolean getNextRequest(PDU request, PDU response) throws IOException {
 		Vector<? extends VariableBinding> requestVBs = request.getVariableBindings();
 		Vector<? extends VariableBinding> responseVBs = response.getVariableBindings();
 		Vector<VariableBinding> nextRequests = new Vector<VariableBinding>();
@@ -572,7 +558,7 @@ public abstract class Node extends Thread {
 		this.nextPDU.setRequestID(new Integer32(0));
 		this.nextPDU.setVariableBindings(nextRequests);
 		
-		return nextRequests.size() > 0? this.nextPDU: null;
+		return nextRequests.size() > 0;
 	}
 		
 	public void parseResponse(ResponseEvent event) throws IOException {
@@ -590,16 +576,13 @@ public abstract class Node extends Thread {
 		int status = response.getErrorStatus();
 		
 		if (status != PDU.noError) {
-			if (this.error.add(status)) {
-				throw new IOException(String.format("Node %s reports error status %d", this.target.getAddress(), status));
-			}
-			
-			onException(null);
-			
-			return;
+			throw new IOException(String.format("Node %s reports error status %d", this.target.getAddress(), status));
 		}
 		
-		if (getNextRequest(request, response) == null) {
+		if (getNextRequest(request, response)) {
+			this.bq.add(this.nextPDU);
+		}
+		else {
 			this.lastResponse = Calendar.getInstance().getTimeInMillis();
 			this.data.put("lastResponse", this.lastResponse);
 			
@@ -613,13 +596,10 @@ public abstract class Node extends Thread {
 			this.data.put("hrStorageEntry", this.hrStorageEntry);
 			this.data.put("ifEntry", this.ifEntry);
 		}
-		else {
-			this.bq.add(this.nextPDU);
-		}
 	}
 	
-	abstract protected void onICMPResponse(long mills);
 	abstract protected void onResponse(boolean success);
+	abstract protected void onTimeout(boolean timeout);
 	abstract protected void onException(Exception e);
 	
 	abstract protected boolean parseEnterprise(OID response, Variable variable, OID request);
