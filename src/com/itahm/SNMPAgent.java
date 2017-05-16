@@ -541,6 +541,13 @@ public class SNMPAgent extends Snmp implements Closeable {
 		}
 	}
 	
+	/**
+	 * 
+	 * @param ip
+	 * @param timeout
+	 * ICMP가 성공하는 경우 후속 SNMP 결과에 따라 처리하도록 하지만
+	 * ICMP가 실패하는 경우는 바로 다음 Request를 처리하도록 해야한다.
+	 */
 	public void onTimeout(String ip, boolean timeout) {
 		if (timeout) {
 			onFailure(ip);
@@ -553,7 +560,7 @@ public class SNMPAgent extends Snmp implements Closeable {
 	/**
 	 * ICMP 요청에 대한 응답
 	 */
-	private void onSuccess(String ip) {
+	private void onSuccess(String ip) {//System.out.println("success"+ ip);
 		SNMPNode node = this.nodeList.get(ip);
 		
 		// 그 사이 삭제되었으면
@@ -615,6 +622,8 @@ public class SNMPAgent extends Snmp implements Closeable {
 				(nodeData != null && nodeData.has("sysName"))? String.format("%s [%s] 응답 없음.", ip, nodeData.getString("sysName")): String.format("%s 응답 없음.", ip),
 				"shutdown", false, true);
 		}
+		
+		sendRequest(node);
 	}
 
 	/**

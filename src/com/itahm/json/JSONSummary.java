@@ -25,7 +25,9 @@ public class JSONSummary extends Data {
 						super.put((String)key, data.getJSONObject((String)key));
 					}
 				}
-			} catch (IOException e) {}
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
 		}
 	}	
 }

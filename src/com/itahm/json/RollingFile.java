@@ -19,17 +19,15 @@ public class RollingFile {
 	
 	/** rollingRoot, itahm/snmp/ip address/resource/index */
 	private final File root;
-	private final JSONSummary summary;
-	private final JSONData data;
 	
 	private File summaryFile;
 	private JSONObject summaryData;
+	private JSONObject summary;
 	private String summaryHour;
 	
 	private File dayDirectory;
 	private File hourFile;
 	private JSONObject hourData;
-	
 	private long max;
 	private long min;
 	private BigInteger hourSum = BigInteger.valueOf(0);
@@ -46,20 +44,53 @@ public class RollingFile {
 	 * @throws IOException Signals that an I/O exception has occurred.
 	 */
 	public RollingFile(File rscRoot, String index) throws IOException {
-		root = new File(rscRoot, index);
-		root.mkdir();
-		
-		summary = new JSONSummary(root);
-		data = new JSONData(root);
-	}
-	
-	private Calendar getCalendar() {
 		Calendar c = Calendar.getInstance();
 		
 		c.set(Calendar.MILLISECOND, 0);
 		c.set(Calendar.SECOND, 0);
+		c.set(Calendar.MINUTE, 0);
 		
-		return c;
+		root = new File(rscRoot, index);
+		root.mkdir();
+		
+		this.lastHour = c.getTimeInMillis();
+		this.summaryHour = Long.toString(this.lastHour);
+				
+		c.set(Calendar.HOUR_OF_DAY, 0);
+		
+		this.lastDay = c.getTimeInMillis();
+		
+		this.dayDirectory = new File(this.root, Long.toString(this.lastDay));
+		this.dayDirectory.mkdir();
+		
+		// summary file 생성
+		this.summaryFile = new File(this.dayDirectory, "summary");
+		if (this.summaryFile.isFile()) {
+			this.summaryData = Util.getJSONFromFile(this.summaryFile);
+		}
+		
+		// 최초 생성되거나, 파일이 깨졌을때
+		if (this.summaryData == null) {
+			Util.putJSONtoFile(this.summaryFile, this.summaryData = new JSONObject());
+		}
+		
+		if (this.summaryData.has(this.summaryHour)) {
+			summary = this.summaryData.getJSONObject(this.summaryHour);
+		}
+		else {
+			this.summaryData.put(this.summaryHour, summary = new JSONObject());
+		}
+		
+		// hourly file 생성
+		this.hourFile = new File(this.dayDirectory, this.summaryHour);
+		if (this.hourFile.isFile()) {
+			this.hourData = Util.getJSONFromFile(this.hourFile);
+		}
+		
+		// 최초 생성되거나, 파일이 깨졌을때
+		if (this.hourData == null) {
+			Util.putJSONtoFile(this.hourFile, this.hourData = new JSONObject());
+		}
 	}
 	
 	/**
@@ -69,25 +100,45 @@ public class RollingFile {
 	 * @throws IOException Signals that an I/O exception has occurred.
 	 */
 	public void roll(long value) throws IOException {
-		Calendar date = getCalendar();
+		Calendar c = Calendar.getInstance();
 		String minString;
-		long hourMills;
-		long dayMills;
+		long hourMills, dayMills;
 
-		minString = Long.toString(date.getTimeInMillis());
+		c.set(Calendar.MILLISECOND, 0);
+		c.set(Calendar.SECOND, 0);
 		
-		date.set(Calendar.MINUTE, 0);
-		hourMills = date.getTimeInMillis();
+		minString = Long.toString(c.getTimeInMillis());
+		
+		c.set(Calendar.MINUTE, 0);
+		hourMills = c.getTimeInMillis();
 		
 		if (this.lastHour != hourMills) {
-			date.set(Calendar.HOUR_OF_DAY, 0);
-			dayMills = date.getTimeInMillis();
+			// 시간마다 summary 파일과 시간파일 저장
+			Util.putJSONtoFile(this.summaryFile, this.summaryData);
+			Util.putJSONtoFile(this.hourFile, this.hourData);
+			
+			c.set(Calendar.HOUR_OF_DAY, 0);
+			dayMills = c.getTimeInMillis();
 			
 			if (this.lastDay != dayMills) {
-				initDay(dayMills);
+				this.lastDay = dayMills;
+				
+				// day directory 생성
+				this.dayDirectory = new File(this.root, Long.toString(dayMills));
+				this.dayDirectory.mkdir();
+				
+				// summary file 생성
+				this.summaryFile = new File(this.dayDirectory, "summary");
+				this.summaryData = new JSONObject();
 			}
 			
-			initHour(hourMills);
+			// hourly file 생성
+			this.lastHour = hourMills;
+			this.summaryHour = Long.toString(hourMills);
+			this.hourFile = new File(this.dayDirectory, this.summaryHour);
+			this.hourData = new JSONObject();
+			this.hourCnt = 0;
+			this.summaryData.put(this.summaryHour, this.summary = new JSONObject());
 		}
 		
 		roll(minString, value);
@@ -98,8 +149,6 @@ public class RollingFile {
 			this.minuteSum = this.minuteSum.add(BigInteger.valueOf(value));
 		}
 		else {
-			Util.putJSONtoFile(this.hourFile, this.hourData);
-			
 			this.minuteSum = BigInteger.valueOf(value);
 			this.minuteSumCnt = 0;
 		}
@@ -121,77 +170,39 @@ public class RollingFile {
 		
 		this.hourCnt++;
 		
-		summarize();
+		summarize(this.hourSum.divide(BigInteger.valueOf(this.hourCnt)).longValue());
 	}
 	
-	private void initDay(long dayMills) throws IOException {
-		this.lastDay = dayMills;
-		
-		// day directory 생성
-		this.dayDirectory = new File(this.root, Long.toString(dayMills));
-		this.dayDirectory.mkdir();
-		
-		// summary file 생성
-		this.summaryFile = new File(this.dayDirectory, "summary");
-		if (this.summaryFile.isFile()) {
-			this.summaryData = Util.getJSONFromFile(this.summaryFile);
-		}
-		
-		// 최초 생성되거나, 파일이 깨졌을때
-		if (this.summaryData == null) {
-			Util.putJSONtoFile(this.summaryFile, this.summaryData = new JSONObject());
-		}
-	}
-	
-	/**
-	 * 
-	 * @param date
-	 * @throws IOException
-	 */
-	private void initHour(long hourMills) throws IOException {
-		String hourString = Long.toString(hourMills);
-		
-		this.lastHour = hourMills;
-		
-		// hourly file 생성
-		this.hourFile = new File(this.dayDirectory, hourString);
-		if (this.hourFile.isFile()) {
-			this.hourData = Util.getJSONFromFile(this.hourFile);
-		}
-		
-		// 최초 생성되거나, 파일이 깨졌을때
-		if (this.hourData == null) {
-			Util.putJSONtoFile(this.hourFile, this.hourData = new JSONObject());
-		}
-		
-		this.summaryHour = hourString;
-		this.hourCnt = 0;
-	}
-	
-	private void summarize() throws IOException {
-		JSONObject summary;
-		
-		if (this.summaryData.has(this.summaryHour)) {
-			summary = this.summaryData.getJSONObject(this.summaryHour);
-		}
-		else {
-			Util.putJSONtoFile(this.summaryFile, this.summaryData);
-			
-			summary = new JSONObject();
-			
-			this.summaryData.put(this.summaryHour, summary);
-		}
-		
-		long avg = this.hourSum.divide(BigInteger.valueOf(this.hourCnt)).longValue();
-		
-		summary
+	private void summarize(long avg) throws IOException {
+		this.summary
 			.put("avg", avg)
 			.put("max", Math.max(avg, this.max))
 			.put("min", Math.min(avg, this.min));
 	}
 	
 	public JSONObject getData(long start, long end, boolean summary) throws IOException {
-		return (summary? this.summary: this.data).getJSON(start, end);
+		Data data;
+		JSONObject source, result;
+		long today = Util.trimDate(Calendar.getInstance()).getTimeInMillis();
+		
+		if (summary) {
+			data = new JSONSummary(this.root);
+			source = this.summaryData;
+		}
+		else {
+			data = new JSONData(this.root);
+			source = this.hourData;
+		}
+			
+		result = data.getJSON(start, end);
+		
+		if (start < today && today < end) {
+			for (Object key : source.keySet()) {
+				data.put((String)key, source.getJSONObject((String)key));
+			}
+		}
+		
+		return result;
 	}
 	
 }

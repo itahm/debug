@@ -53,7 +53,7 @@ public class Agent implements ITAhMAgent {
 	private boolean isClosed = true;
 	
 	public Agent() {
-		System.out.format("ITAhM Agent version %s (debug only) ready.\n", VERSION);
+		System.out.format("ITAhM Agent version %s (updated) ready.\n", VERSION);
 	}
 	
 	public boolean start(File dataRoot) {
