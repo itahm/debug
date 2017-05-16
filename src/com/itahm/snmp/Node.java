@@ -51,7 +51,6 @@ public abstract class Node extends Thread {
 	private long failureCount = 0;
 	private boolean isInitialized = false;
 	private final BlockingQueue<PDU> bq = new LinkedBlockingQueue<>();
-	private final int timeout;
 	private boolean processing = false;
 	
 	protected long lastResponse;
@@ -77,7 +76,6 @@ public abstract class Node extends Thread {
 	public Node(Snmp snmp, String ip, int timeout) throws IOException {
 		this.snmp = snmp;
 		this.ip = InetAddress.getByName(ip);
-		this.timeout = timeout;
 		
 		start();
 	}
@@ -86,6 +84,9 @@ public abstract class Node extends Thread {
 	public void run() {
 		PDU pdu;
 		long sent;
+		final int [] timeouts = new int [] {2000, 3000, 5000};
+		final int count = timeouts.length;
+		int index = 0;
 		
 		while (!Thread.interrupted()) {
 			try {
@@ -96,15 +97,21 @@ public abstract class Node extends Thread {
 					
 					sent = Calendar.getInstance().getTimeInMillis();
 					
-					if (!this.ip.isReachable(timeout)) {
+					for (index=0; index < count; index++) {
+						if (this.ip.isReachable(timeouts[index])) {
+							break;
+						}
+					}
+					
+					if (index == count) {
 						onTimeout(true);
 						
 						continue;
 					}
 					
-					onTimeout(false);
-					
 					data.put("responseTime", this.responseTime = Calendar.getInstance().getTimeInMillis() - sent);
+					
+					onTimeout(false);
 				}
 				
 				parseResponse(this.snmp.send(pdu, this.target));
