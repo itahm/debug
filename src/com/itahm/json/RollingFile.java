@@ -181,28 +181,29 @@ public class RollingFile {
 	}
 	
 	public JSONObject getData(long start, long end, boolean summary) throws IOException {
-		Data data;
-		JSONObject source, result;
-		long today = Util.trimDate(Calendar.getInstance()).getTimeInMillis();
+		JSONObject data;
+		long now = Calendar.getInstance().getTimeInMillis();
 		
 		if (summary) {
-			data = new JSONSummary(this.root);
-			source = this.summaryData;
-		}
-		else {
-			data = new JSONData(this.root);
-			source = this.hourData;
-		}
-			
-		result = data.getJSON(start, end);
-		
-		if (start < today && today < end) {
-			for (Object key : source.keySet()) {
-				data.put((String)key, source.getJSONObject((String)key));
+			data = new JSONSummary(this.root).getJSON(start, end);
+
+			if (start < now && now < end) {
+				for (Object key : this.summaryData.keySet()) {
+					data.put((String)key, this.summaryData.getJSONObject((String)key));
+				}
 			}
 		}
-		
-		return result;
+		else {
+			data = new JSONData(this.root).getJSON(start, end);
+			
+			if (start < now && now < end) {
+				for (Object key : this.hourData.keySet()) {
+					data.put((String)key, this.hourData.getLong((String)key));
+				}
+			}
+		}
+			
+		return data;
 	}
 	
 }

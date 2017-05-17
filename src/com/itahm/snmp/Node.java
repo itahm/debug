@@ -41,6 +41,9 @@ public abstract class Node extends Thread {
 	private final static int CISCO = 9;
 	private final static int DASAN = 6296;
 	
+	private final static int [] TIMEOUTS = new int [] {2000, 3000, 5000};
+	private final static int TIMEOUT_COUNT = TIMEOUTS.length;
+	
 	public PDU pdu;
 	private PDU nextPDU;
 	private final Snmp snmp;
@@ -84,9 +87,7 @@ public abstract class Node extends Thread {
 	public void run() {
 		PDU pdu;
 		long sent;
-		final int [] timeouts = new int [] {2000, 3000, 5000};
-		final int count = timeouts.length;
-		int index = 0;
+		int index;
 		
 		while (!Thread.interrupted()) {
 			try {
@@ -95,21 +96,21 @@ public abstract class Node extends Thread {
 				if (!this.processing) {
 					this.processing = true;
 					
-					sent = Calendar.getInstance().getTimeInMillis();
+					sent = System.currentTimeMillis();
 					
-					for (index=0; index < count; index++) {
-						if (this.ip.isReachable(timeouts[index])) {
+					for (index=0; index < TIMEOUT_COUNT; index++) {
+						if (this.ip.isReachable(TIMEOUTS[index])) {
 							break;
 						}
 					}
 					
-					if (index == count) {
+					if (index == TIMEOUT_COUNT) {
 						onTimeout(true);
 						
 						continue;
 					}
 					
-					data.put("responseTime", this.responseTime = Calendar.getInstance().getTimeInMillis() - sent);
+					data.put("responseTime", this.responseTime = System.currentTimeMillis() - sent);
 					
 					onTimeout(false);
 				}
