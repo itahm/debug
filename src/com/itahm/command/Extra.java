@@ -27,7 +27,8 @@ public class Extra implements Command {
 		ARP,
 		LINK,
 		SYSLOG,
-		ENTERPRISE;
+		ENTERPRISE,
+		REPORT;
 	};
 	
 	@Override
@@ -104,6 +105,8 @@ public class Extra implements Command {
 				return Agent.snmp.executeEnterprise(request, data);
 			case SYSLOG:
 				return Response.getInstance(Response.Status.OK, new JSONObject().put("log", Agent.log.getSysLog(data.getLong("date"))).toString());
+			case REPORT:
+				return Response.getInstance(Response.Status.OK, Agent.log.read(data.getLong("start"), data.getLong("end")));
 			}
 		}
 		catch (NullPointerException npe) {

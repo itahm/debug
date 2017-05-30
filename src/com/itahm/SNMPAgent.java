@@ -92,7 +92,8 @@ public class SNMPAgent extends Snmp implements Closeable {
 	private Thread cleaner = null;
 	
 	public SNMPAgent(File root) throws IOException {
-		super(new DefaultUdpTransportMapping(new UdpAddress("0.0.0.0/162")));
+		//super(new DefaultUdpTransportMapping(new UdpAddress("0.0.0.0/162")));
+		super(new DefaultUdpTransportMapping());
 		
 		System.out.println("SNMP manager start.");
 		

@@ -97,6 +97,25 @@ public class Log {
 		return new JSONObject().toString();
 	}
 	
+	public String read(long start, long end) throws IOException {
+		JSONObject jsono = new JSONObject();
+		Calendar c = Calendar.getInstance();
+		
+		c.setTimeInMillis(start);
+		
+		for (; start <= end; c.set(Calendar.DATE, c.get(Calendar.DATE) +1), start = c.getTimeInMillis()) {
+			byte [] bytes = this.dailyFile.read(start);
+		
+			if (bytes == null) {
+				continue;
+			}
+			
+			jsono.put(Long.toString(start), new JSONObject(new String(bytes, StandardCharsets.UTF_8.name())));
+		}
+		
+		return jsono.toString();
+	}
+	
 	/**
 	 * waiter가 원하는 이벤트 있으면 돌려주고 없으면 waiter 큐에 추가  
 	 * @param waiter

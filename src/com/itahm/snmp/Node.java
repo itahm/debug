@@ -83,11 +83,22 @@ public abstract class Node extends Thread {
 		start();
 	}
 	
+	private static long ping(InetAddress ip) throws IOException {
+		long sent = System.currentTimeMillis();
+		
+		for (int i=0; i < TIMEOUT_COUNT; i++) {
+			if (ip.isReachable(TIMEOUTS[i])) {
+				return System.currentTimeMillis() - sent;
+			}
+		}
+		
+		return -1;
+	}
+	
 	@Override
 	public void run() {
 		PDU pdu;
-		long sent;
-		int index;
+		long rt;
 		
 		while (!Thread.interrupted()) {
 			try {
@@ -96,21 +107,15 @@ public abstract class Node extends Thread {
 				if (!this.processing) {
 					this.processing = true;
 					
-					sent = System.currentTimeMillis();
+					rt = ping(this.ip);
 					
-					for (index=0; index < TIMEOUT_COUNT; index++) {
-						if (this.ip.isReachable(TIMEOUTS[index])) {
-							break;
-						}
-					}
-					
-					if (index == TIMEOUT_COUNT) {
+					if (rt < 0) {
 						onTimeout(true);
 						
 						continue;
 					}
 					
-					data.put("responseTime", this.responseTime = System.currentTimeMillis() - sent);
+					data.put("responseTime", this.responseTime = rt);
 					
 					onTimeout(false);
 				}

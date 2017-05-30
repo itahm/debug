@@ -1,6 +1,5 @@
 package com.itahm;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -8,6 +7,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.regex.Pattern;
 
 import com.itahm.ITAhMAgent;
 import com.itahm.http.Listener;
@@ -68,7 +68,6 @@ public class ITAhM extends Listener {
 			origin = "http://itahm.com";
 		}
 	
-		//response.setResponseHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
 		response.setResponseHeader("Access-Control-Allow-Origin", origin);
 		response.setResponseHeader("Access-Control-Allow-Credentials", "true");
 		
@@ -110,13 +109,14 @@ public class ITAhM extends Listener {
 			return this.agent.executeRequest(request, data);
 			
 		case "GET":
-			File uri = new File(this.root, request.getRequestURI());
-			try {
-				return Response.getInstance(uri);
+			String uri = request.getRequestURI();
+			File file = new File(this.root, uri);
+			
+			if (!Pattern.compile("^/data/.*").matcher(uri).matches() && file.isFile()) {
+				return Response.getInstance(file);
 			}
-			catch (FileNotFoundException fnfe) {
-				return Response.getInstance(Response.Status.NOTFOUND);
-			}
+			
+			return Response.getInstance(Response.Status.NOTFOUND);
 		}
 		
 		return Response.getInstance(Response.Status.NOTALLOWED).setResponseHeader("Allow", "OPTIONS, POST, GET");
