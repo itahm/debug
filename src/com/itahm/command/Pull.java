@@ -27,6 +27,7 @@ public class Pull implements Command {
 					data = table.getJSONObject()
 						.put("space", Agent.getUsableSpace())
 						.put("version", Agent.VERSION)
+						.put("load", Agent.snmp.getLoad())
 						.put("java", System.getProperty("java.version"));
 				}
 				else {

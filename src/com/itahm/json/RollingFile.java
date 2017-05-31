@@ -13,6 +13,8 @@ import com.itahm.util.Util;
  */
 public class RollingFile {
 	
+	private long load;
+	
 	/** The lastHour. */
 	private long lastHour = -1;
 	private long lastDay = -1;
@@ -102,7 +104,7 @@ public class RollingFile {
 	public void roll(long value) throws IOException {
 		Calendar c = Calendar.getInstance();
 		String minString;
-		long hourMills, dayMills;
+		long hourMills, dayMills, elapse;
 
 		c.set(Calendar.MILLISECOND, 0);
 		c.set(Calendar.SECOND, 0);
@@ -114,8 +116,12 @@ public class RollingFile {
 		
 		if (this.lastHour != hourMills) {
 			// 시간마다 summary 파일과 시간파일 저장
+			elapse = System.currentTimeMillis();
+			
 			Util.putJSONtoFile(this.summaryFile, this.summaryData);
 			Util.putJSONtoFile(this.hourFile, this.hourData);
+			
+			this.load = System.currentTimeMillis() - elapse;
 			
 			c.set(Calendar.HOUR_OF_DAY, 0);
 			dayMills = c.getTimeInMillis();
@@ -204,6 +210,10 @@ public class RollingFile {
 		}
 			
 		return data;
+	}
+	
+	public long getLoad() {
+		return this.load;
 	}
 	
 }

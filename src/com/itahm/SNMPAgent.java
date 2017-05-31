@@ -3,6 +3,7 @@ package com.itahm;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -762,6 +763,20 @@ public class SNMPAgent extends Snmp implements Closeable {
 		
 		return this.enterprise.execute(request, data);
 	}
+	
+	public long getLoad() {
+		BigInteger bi = BigInteger.valueOf(0);
+		long size = 0;
+		
+		for (String ip : this.nodeList.keySet()) {
+			bi = bi.add(BigInteger.valueOf(this.nodeList.get(ip).getLoad()));
+			
+			size++;
+		}
+		
+		return size > 0? bi.divide(BigInteger.valueOf(size)).longValue(): 0;
+	}
+	
 	/**
 	 * ovverride
 	 */

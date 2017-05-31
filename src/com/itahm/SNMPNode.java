@@ -459,6 +459,23 @@ public class SNMPNode extends Node {
 		}
 	}
 
+	public long getLoad() {
+		Map<String, RollingFile> map;
+		long sum = 0;
+		long count = 0;
+		
+		for (Rolling resource : this.rollingMap.keySet()) {
+			map = this.rollingMap.get(resource);
+			
+			for (String index : map.keySet()) {
+				sum += map.get(index).getLoad();
+				count++;
+			}
+		}
+		
+		return count > 0? (sum / count): 0;
+	}
+	
 	@Override
 	protected void onResponse(boolean success) {
 		if (success) {
