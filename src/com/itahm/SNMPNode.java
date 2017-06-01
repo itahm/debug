@@ -476,6 +476,16 @@ public class SNMPNode extends Node {
 		return count > 0? (sum / count): 0;
 	}
 	
+	public long getResourceCount() {
+		long count = 0;
+		
+		for (Rolling resource : this.rollingMap.keySet()) {
+			count += this.rollingMap.get(resource).size();
+		}
+		
+		return count;
+	}
+	
 	@Override
 	protected void onResponse(boolean success) {
 		if (success) {

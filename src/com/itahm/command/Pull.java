@@ -28,6 +28,7 @@ public class Pull implements Command {
 						.put("space", Agent.getUsableSpace())
 						.put("version", Agent.VERSION)
 						.put("load", Agent.snmp.getLoad())
+						.put("resource", Agent.snmp.getResourceCount())
 						.put("java", System.getProperty("java.version"));
 				}
 				else {

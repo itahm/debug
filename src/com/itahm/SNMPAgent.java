@@ -777,6 +777,16 @@ public class SNMPAgent extends Snmp implements Closeable {
 		return size > 0? bi.divide(BigInteger.valueOf(size)).longValue(): 0;
 	}
 	
+	public long getResourceCount() {
+		long count = 0;
+		
+		for (String ip : this.nodeList.keySet()) {
+			count += this.nodeList.get(ip).getResourceCount();
+		}
+		
+		return count;
+	}
+	
 	/**
 	 * ovverride
 	 */
