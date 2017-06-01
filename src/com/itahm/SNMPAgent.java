@@ -54,6 +54,7 @@ import com.itahm.util.Util;
 public class SNMPAgent extends Snmp implements Closeable {
 	
 	private final static long REQUEST_INTERVAL = 10000;
+	private final static int QUEUE_SIZE = 24;
 	
 	public enum Resource {
 		RESPONSETIME("responseTime"),
@@ -89,6 +90,7 @@ public class SNMPAgent extends Snmp implements Closeable {
 	private final Map<String, JSONObject> arp;
 	private final Map<String, String> network;
 	private final Extension enterprise;
+	private JSONObject load = new JSONObject();
 	
 	private Thread cleaner = null;
 	
@@ -109,6 +111,39 @@ public class SNMPAgent extends Snmp implements Closeable {
 		topTable = new TopTable<>(Resource.class);
 		
 		timer = new Timer();
+		
+		timer.schedule(new TimerTask() {
+			private Long [] queue = new Long[QUEUE_SIZE];
+			private Map<Long, Long> map = new HashMap<>();
+			private Calendar c;
+			private int position = 0;
+			
+			@Override
+			public void run() {
+				long key;
+				
+				c = Calendar.getInstance();
+				
+				c.set(Calendar.MINUTE, 0);
+				c.set(Calendar.SECOND, 0);
+				c.set(Calendar.MILLISECOND, 0);
+				
+				key = c.getTimeInMillis();
+				
+				if (this.map.put(key, calcLoad()) == null) {
+					if (this.queue[this.position] != null) {
+						this.map.remove(this.queue[this.position]);
+					}
+					
+					this.queue[this.position++] = key;
+					
+					this.position %= QUEUE_SIZE;
+					
+					load = new JSONObject(this.map);
+					
+					System.out.format("position: %d, map.size: %d\n", this.position, this.map.size());
+				}
+			}}, 10 *60 *1000, 10 *60 *1000);
 		
 		arp = new HashMap<String, JSONObject>();
 		network = new HashMap<String, String>();
@@ -764,7 +799,11 @@ public class SNMPAgent extends Snmp implements Closeable {
 		return this.enterprise.execute(request, data);
 	}
 	
-	public long getLoad() {
+	public JSONObject getLoad() {
+		return this.load;
+	}
+	
+	private final long calcLoad() {
 		BigInteger bi = BigInteger.valueOf(0);
 		long size = 0;
 		
