@@ -3,11 +3,11 @@ package com.itahm.http;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
-
+import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
-
+import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
@@ -18,7 +18,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.Timer;
-
 
 public abstract class Listener extends Timer implements Runnable, Closeable {
 	
@@ -172,15 +171,14 @@ public abstract class Listener extends Timer implements Runnable, Closeable {
 						try {
 							onRead(key);
 						}
-						catch(IOException ioe) {
+						catch (IOException ioe) {
 							try {
 								closeRequest((Request)key.attachment());
 							} catch (IOException ioe2) {
-								// TODO Auto-generated catch block
 								ioe2.printStackTrace();
 							}
 							
-							ioe.printStackTrace();
+							onException(ioe);
 						}
 					}
 				}
@@ -203,9 +201,10 @@ public abstract class Listener extends Timer implements Runnable, Closeable {
 	abstract protected void onStart();
 	abstract protected void onRequest(Request request)  throws IOException;
 	abstract protected void onClose(Request request);
+	abstract protected void onException(Exception e);
 	
-	public static void main(String [] args) throws IOException {
-		final Listener server = new Listener() {
+	public static void main(String [] args) throws IOException, InterruptedException {
+		final Listener server = new Listener(20114) {
 
 			@Override
 			protected void onRequest(Request request) {
@@ -251,7 +250,18 @@ public abstract class Listener extends Timer implements Runnable, Closeable {
 			protected void onStart() {				
 			}
 
+			@Override
+			protected void onException(Exception e) {
+			}
+
 		};
+		
+		Socket s = new Socket("127.0.0.1", 20114);
+			
+			try (OutputStream os = s.getOutputStream()) {
+				s.setSoLinger(true, 0);
+			}
+		s.close();
 		
 		System.in.read();
 		

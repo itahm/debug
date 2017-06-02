@@ -140,8 +140,6 @@ public class SNMPAgent extends Snmp implements Closeable {
 					this.position %= QUEUE_SIZE;
 					
 					load = new JSONObject(this.map);
-					
-					System.out.format("position: %d, map.size: %d\n", this.position, this.map.size());
 				}
 			}}, 10 *60 *1000, 10 *60 *1000);
 		

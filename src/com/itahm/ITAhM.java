@@ -61,6 +61,11 @@ public class ITAhM extends Listener {
 		this.agent.closeRequest(request);
 	}
 	
+	@Override
+	protected void onException(Exception e) {
+		Agent.log.sysLog(e.getMessage());
+	}
+	
 	public static void sendResponse(Request request, Response response) throws IOException {
 		String origin = request.getRequestHeader(Request.Header.ORIGIN);
 		
