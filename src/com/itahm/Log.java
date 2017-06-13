@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import com.itahm.json.JSONObject;
+import com.itahm.enterprise.Enterprise;
 import com.itahm.http.Request;
 import com.itahm.http.Response;
 import com.itahm.util.Util;
@@ -19,7 +20,7 @@ public class Log {
 	public final static String TEST = "test";
 	
 	private final Set<Request> waiter = new HashSet<Request> ();
-	
+	private final Enterprise enterprise = Enterprise.getInstance();
 	private LogFile dailyFile;
 	private SysLogFile sysLog;
 	
@@ -74,8 +75,12 @@ public class Log {
 			waiter.clear();
 		}
 		
-		if(broadcast && Agent.gcmm != null) {
-			Agent.gcmm.broadcast(logData.getString("message"));
+		if(broadcast) {
+			if (Agent.gcmm != null) {
+				Agent.gcmm.broadcast(message);
+			}
+		
+			this.enterprise.sendEvent(message);
 		}
 	}
 	
@@ -133,10 +138,6 @@ public class Log {
 		else {
 			ITAhM.sendResponse(request, Response.getInstance(Response.Status.OK, log.toString()));
 		}
-	}
-	
-	public int _getWaiterCount() {
-		return this.waiter.size();
 	}
 	
 	public void cancel(Request request) {

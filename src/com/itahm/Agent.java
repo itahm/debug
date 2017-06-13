@@ -26,7 +26,6 @@ import com.itahm.table.Config;
 import com.itahm.table.Critical;
 import com.itahm.table.Device;
 import com.itahm.table.GCM;
-import com.itahm.table.Icon;
 import com.itahm.table.Monitor;
 import com.itahm.table.Position;
 import com.itahm.table.Profile;
@@ -34,7 +33,7 @@ import com.itahm.table.Table;
 
 public class Agent implements ITAhMAgent {
 
-	public final static String VERSION = "1.3.3.12";
+	public final static String VERSION = "1.4.3.0";
 	public final static String API_KEY = "AIzaSyBg6u1cj9pPfggp-rzQwvdsTGKPgna0RrA";
 	
 	public final static int MAX_TIMEOUT = 10000;
@@ -72,9 +71,10 @@ public class Agent implements ITAhMAgent {
 			tableMap.put(Table.POSITION, new Position(dataRoot));
 			tableMap.put(Table.MONITOR, new Monitor(dataRoot));
 			tableMap.put(Table.CONFIG, new Config(dataRoot));
-			tableMap.put(Table.ICON, new Icon(dataRoot));
+			tableMap.put(Table.ICON, new Table(dataRoot, Table.ICON));
 			tableMap.put(Table.CRITICAL, new Critical(dataRoot));
 			tableMap.put(Table.GCM, new GCM(dataRoot));
+			tableMap.put(Table.SMS, new Table(dataRoot, Table.SMS));
 			
 			log = new Log(dataRoot);
 			snmp = new SNMPAgent(dataRoot);

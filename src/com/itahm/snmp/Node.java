@@ -577,7 +577,7 @@ public abstract class Node extends Thread {
 	public void parseResponse(ResponseEvent event) throws IOException {
 		PDU response = event.getResponse();
 		
-		if (response == null || (Snmp)event.getSource() instanceof Snmp.ReportHandler) {
+		if (response == null || event.getSource() instanceof Snmp.ReportHandler) {
 			this.failureCount = Math.min(MAX_REQUEST, this.failureCount +1);
 			
 			onResponse(false);

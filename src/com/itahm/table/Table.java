@@ -16,6 +16,7 @@ public class Table {
 	public final static String PROFILE = "profile";
 	public final static String CONFIG = "config";
 	public final static String GCM = "gcm";
+	public final static String SMS = "sms";
 	
 	protected JSONObject table;
 	private File file;

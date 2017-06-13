@@ -287,6 +287,11 @@ public class SNMPAgent extends Snmp implements Closeable {
 		}
 	}
 	
+	/**
+	 * table.Profile 로부터 호출.
+	 * @param profile
+	 * @return
+	 */
 	public boolean addUSM(JSONObject profile) {
 		String user = profile.getString("user");
 		
