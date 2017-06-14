@@ -1,6 +1,5 @@
 package com.itahm.enterprise;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -12,16 +11,16 @@ import com.itahm.Agent;
 import com.itahm.json.JSONObject;
 import com.itahm.table.Table;
 
-public class KIER extends Enterprise implements Closeable {
+public class KIER extends Enterprise {
 
+	public static final String KEY = "01F10774-7EDA-409A-A545-117228B4E3B2";
+	
+	private static final String URL = "jdbc:oracle:thin:@127.0.0.1:1521:XE";
+	private static final String USER = "KIERWEB";
+	private static final String PASSWD = "KIERWEBpw";
+	
 	Connection connection;
 	long index = 0; /** TODO 인덱스 처리 어떻게 할지 확인할것.*/
-	
-	public KIER() throws ClassNotFoundException, SQLException {
-		Class.forName("oracle.jdbc.driver.OracleDriver");
-		
-		connection = DriverManager.getConnection("jdbc:oracle:thin:@127.0.0.1:1521:XE", "KIERWEB", "KIERWEBpw");
-	}
 	
 	public static String getDateString() {
 		Calendar c = Calendar.getInstance();
@@ -37,12 +36,14 @@ public class KIER extends Enterprise implements Closeable {
 	
 	@Override
 	public void sendEvent(String event) {
-		try (Statement s = this.connection.createStatement()) {
-			JSONObject smsData = Agent.getTable(Table.SMS).getJSONObject();
-			String date = KIER.getDateString();
-			
-			for (Object id : smsData.keySet()) {
-				sendEvent(s, this.index++, date, event, smsData.getJSONObject((String)id).getString("number"));
+		try (Connection connection = DriverManager.getConnection(URL, USER, PASSWD)) {
+			try (Statement s = this.connection.createStatement()) {
+				JSONObject smsData = Agent.getTable(Table.SMS).getJSONObject();
+				String date = KIER.getDateString();
+				
+				for (Object id : smsData.keySet()) {
+					sendEvent(s, this.index++, date, event, smsData.getJSONObject((String)id).getString("number"));
+				}
 			}
 		} catch (SQLException sqle) {
 			sqle.printStackTrace();
@@ -57,26 +58,8 @@ public class KIER extends Enterprise implements Closeable {
 			, date /* 송신 시간 */
 			, event /* 메세지 */ ));
 	}
-
-	public void sendEvent(long index, String event, String to) throws SQLException {
-		try (Statement s = this.connection.createStatement()) {
-			sendEvent(s, index, getDateString(), event, to);
-		}
-		
-	}
-	
-	@Override
-	public void close() throws IOException {
-		try {
-			this.connection.close();
-		} catch (SQLException sqle) {
-			throw new IOException(sqle);
-		}
-	}
 	
 	public static void main(String [] args) throws SQLException, ClassNotFoundException, IOException {
-		try (KIER kier = new KIER()) {
-			kier.sendEvent(999, "테스트 Event", "01025386433");
-		}
+		new KIER();
 	}
 }

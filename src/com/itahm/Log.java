@@ -76,12 +76,16 @@ public class Log {
 		}
 		
 		if(broadcast) {
-			if (Agent.gcmm != null) {
-				Agent.gcmm.broadcast(message);
-			}
-		
-			this.enterprise.sendEvent(message);
+			broadcast(message);
 		}
+	}
+	
+	public void broadcast(String message) {
+		if (Agent.gcmm != null) {
+			Agent.gcmm.broadcast(message);
+		}
+	
+		this.enterprise.sendEvent(message);
 	}
 	
 	public void sysLog(String log) {

@@ -59,12 +59,7 @@ public class Extra implements Command {
 				
 				return Response.getInstance(Response.Status.OK);
 			case MESSAGE:
-				if (Agent.gcmm == null) {
-					return Response.getInstance(Response.Status.BADREQUEST,
-						new JSONObject().put("error", "gcm not enabled").toString());
-				}
-				
-				Agent.gcmm.broadcast(data.getString("message"));
+				Agent.log.broadcast(data.getString("message"));
 				
 				return Response.getInstance(Response.Status.OK);
 			case TOP:
