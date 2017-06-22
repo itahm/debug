@@ -8,7 +8,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import com.itahm.json.JSONObject;
-import com.itahm.enterprise.Enterprise;
+import com.itahm.table.Table;
 import com.itahm.http.Request;
 import com.itahm.http.Response;
 import com.itahm.util.Util;
@@ -20,7 +20,6 @@ public class Log {
 	public final static String TEST = "test";
 	
 	private final Set<Request> waiter = new HashSet<Request> ();
-	private final Enterprise enterprise = Enterprise.getInstance();
 	private LogFile dailyFile;
 	private SysLogFile sysLog;
 	
@@ -85,7 +84,11 @@ public class Log {
 			Agent.gcmm.broadcast(message);
 		}
 	
-		this.enterprise.sendEvent(message);
+		JSONObject config = Agent.getTable(Table.CONFIG).getJSONObject();
+		
+		if (config.has("sms") && config.getBoolean("sms")) {
+			Agent.enterprise.sendEvent(message);
+		}
 	}
 	
 	public void sysLog(String log) {

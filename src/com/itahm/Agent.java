@@ -30,6 +30,7 @@ import com.itahm.table.Monitor;
 import com.itahm.table.Position;
 import com.itahm.table.Profile;
 import com.itahm.table.Table;
+import com.itahm.enterprise.Enterprise;
 
 public class Agent implements ITAhMAgent {
 
@@ -47,7 +48,7 @@ public class Agent implements ITAhMAgent {
 	public static GCMManager gcmm = null;
 	public static SNMPAgent snmp;
 	public static ICMPAgent icmp;
-	
+	public static Enterprise enterprise = Enterprise.getInstance();
 	private static File root;
 	private boolean isClosed = true;
 	
@@ -257,6 +258,10 @@ public class Agent implements ITAhMAgent {
 		
 		if (gcmm != null) {
 			gcmm.close();
+		}
+		
+		if (enterprise != null) {
+			enterprise.close();
 		}
 		
 		System.out.println("ITAhM agent down.");

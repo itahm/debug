@@ -17,7 +17,8 @@ public class Config implements Command {
 		CLEAN,
 		DASHBOARD,
 		DISPLAY,
-		GCM
+		GCM,
+		SMS
 	}
 	
 	@Override
@@ -41,9 +42,13 @@ public class Config implements Command {
 				table.save();
 				
 				break;
-
 			case DISPLAY:
 				table.getJSONObject().put("display", data.getString("value"));
+				table.save();
+				
+				break;
+			case SMS:
+				table.getJSONObject().put("sms", data.getBoolean("value"));
 				table.save();
 				
 				break;

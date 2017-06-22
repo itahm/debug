@@ -1,4 +1,5 @@
 package com.itahm;
+import java.io.Closeable;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -16,7 +17,7 @@ import com.itahm.http.Response;
 import com.itahm.json.JSONException;
 import com.itahm.json.JSONObject;
 
-public class ITAhM extends Listener {
+public class ITAhM extends Listener implements Closeable {
 	
 	private final static String DATA = "data";
 	
@@ -127,6 +128,13 @@ public class ITAhM extends Listener {
 		return Response.getInstance(Response.Status.NOTALLOWED).setResponseHeader("Allow", "OPTIONS, POST, GET");
 	}
 	
+	@Override
+	public void close() throws IOException {
+		super.close();
+		
+		this.agent.stop();
+	}
+	
 	public static void download(URL url, File output) throws IOException {
 		HttpURLConnection hurlc = (HttpURLConnection)url.openConnection();
 		
@@ -203,13 +211,13 @@ public class ITAhM extends Listener {
 		}
 		
 		try {
-			final ITAhM c = new ITAhM(tcp, path, clean);
+			final ITAhM itahm = new ITAhM(tcp, path, clean);
 			
 			Runtime.getRuntime().addShutdownHook(
 				new Thread() {
 					public void run() {
 						try {
-							c.close();
+							itahm.close();
 						} catch (IOException ioe) {
 							ioe.printStackTrace();
 						}
